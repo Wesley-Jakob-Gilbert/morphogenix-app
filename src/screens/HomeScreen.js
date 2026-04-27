@@ -66,7 +66,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.brandRow}>
             <MountainLogo />
             <View style={styles.brandCopy}>
-              <Text style={styles.brand}>MorphoGeniX</Text>
+              <Text style={styles.brand}>MorphoGenix</Text>
               <Text style={styles.window}>{morphodayWindow}</Text>
             </View>
           </View>
