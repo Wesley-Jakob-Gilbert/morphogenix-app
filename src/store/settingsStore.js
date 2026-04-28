@@ -1,6 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { create } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from './persistSettings';
+
+const isWeb = Platform.OS === 'web';
 
 const useSettingsStore = create(
   persist(
@@ -9,8 +12,8 @@ const useSettingsStore = create(
       morphodayStartHour: 12,
       colorScaleMode: 'normalized',
       postureGoal: 80,
-      setDemoMode: (demoMode) => set({ demoMode }),
-      toggleDemoMode: () => set((state) => ({ demoMode: !state.demoMode })),
+      setDemoMode: (demoMode) => set({ demoMode: isWeb ? true : demoMode }),
+      toggleDemoMode: () => set((state) => ({ demoMode: isWeb ? true : !state.demoMode })),
       setMorphodayStartHour: (morphodayStartHour) => set({ morphodayStartHour }),
       setColorScaleMode: (colorScaleMode) => set({ colorScaleMode }),
       toggleColorScaleMode: () =>
@@ -22,8 +25,13 @@ const useSettingsStore = create(
     {
       name: 'morphogenix-settings-v1',
       storage: createJSONStorage(() => AsyncStorage),
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...persistedState,
+        demoMode: isWeb ? true : persistedState?.demoMode ?? currentState.demoMode,
+      }),
       partialize: (state) => ({
-        demoMode: state.demoMode,
+        demoMode: isWeb ? true : state.demoMode,
         morphodayStartHour: state.morphodayStartHour,
         colorScaleMode: state.colorScaleMode,
         postureGoal: state.postureGoal,

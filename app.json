@@ -21,10 +21,16 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "static"
     },
     "plugins": [
-      "expo-font"
-    ]
+      "expo-font",
+      "expo-router"
+    ],
+    "experiments": {
+      "baseUrl": "/demo"
+    }
   }
 }

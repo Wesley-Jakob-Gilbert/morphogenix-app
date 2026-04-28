@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -11,6 +11,9 @@ export default function AccountScreen() {
       <Text style={styles.kicker}>ACCOUNT</Text>
       <Text style={styles.title}>Account</Text>
       <Text style={styles.body}>Profile and settings stub. About Us nests here in the next pass.</Text>
+      {Platform.OS === 'web' ? (
+        <Text style={styles.demoLock}>Demo Mode is always on for the web preview because browser sessions do not connect to MorphoGenix hardware.</Text>
+      ) : null}
     </View>
   );
 }
@@ -41,5 +44,12 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     textAlign: 'center',
     marginTop: spacing.md,
+  },
+  demoLock: {
+    color: colors.teal,
+    fontSize: typography.sizes.caption,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: spacing.lg,
   },
 });

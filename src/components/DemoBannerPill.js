@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text } from 'react-native';
 import * as Haptics from 'expo-haptics';
 
 import useSettingsStore from '../store/settingsStore';
@@ -10,10 +10,13 @@ import typography from '../theme/typography';
 export default function DemoBannerPill() {
   const demoMode = useSettingsStore((state) => state.demoMode);
   const setDemoMode = useSettingsStore((state) => state.setDemoMode);
+  const isWeb = Platform.OS === 'web';
 
   if (!demoMode) return null;
 
   const confirmDisable = () => {
+    if (isWeb) return;
+
     Haptics.selectionAsync();
     Alert.alert('Turn off Demo Mode?', 'Without hardware connected, live palate updates will pause.', [
       { text: 'Keep Demo', style: 'cancel' },
@@ -22,8 +25,15 @@ export default function DemoBannerPill() {
   };
 
   return (
-    <Pressable onPress={confirmDisable} style={({ pressed }) => [styles.pill, pressed && styles.pressed]}>
-      <Text style={styles.text}>Demo Mode · 10 Hz canned stream · Tap to turn off</Text>
+    <Pressable
+      accessibilityRole={isWeb ? 'text' : 'button'}
+      disabled={isWeb}
+      onPress={confirmDisable}
+      style={({ pressed }) => [styles.pill, pressed && !isWeb && styles.pressed]}
+    >
+      <Text style={styles.text}>
+        {isWeb ? 'Demo Mode · Web stream locked on' : 'Demo Mode · 10 Hz canned stream · Tap to turn off'}
+      </Text>
     </Pressable>
   );
 }
