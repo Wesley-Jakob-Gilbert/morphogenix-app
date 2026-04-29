@@ -9,6 +9,7 @@ import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
 import WearTimeCaption from '../components/WearTimeCaption';
 import useMorphoday from '../hooks/useMorphoday';
+import useSmoothed from '../hooks/useSmoothed';
 import useStream from '../hooks/useStream';
 import useWearTime from '../hooks/useWearTime';
 import colors from '../theme/colors';
@@ -27,12 +28,19 @@ export default function HomeScreen({ navigation }) {
     }
   }, [packet]);
 
+  // Raw values from the latest packet
+  const rawPosture = typeof packet?.posture === 'number' ? packet.posture : 0.87;
+  const rawPressure = packet?.palate?.length
+    ? packet.palate.reduce((sum, value) => sum + value, 0) / packet.palate.length
+    : 0.62;
+
+  // Rolling 3-second average (10Hz x 3s = 30 samples) so displayed tile values are steady
+  const smoothedPosture = useSmoothed(rawPosture, { windowSize: 30, throttleMs: 300 });
+  const smoothedPressure = useSmoothed(rawPressure, { windowSize: 30, throttleMs: 300 });
+
   const metrics = useMemo(() => {
-    const currentPressure = packet?.palate?.length
-      ? packet.palate.reduce((sum, value) => sum + value, 0) / packet.palate.length
-      : 0.62;
-    const postureScore = packet?.posture ? Math.round(packet.posture * 100) : 87;
-    const pressureValue = currentPressure || aggregate.pressureAvg || 0.62;
+    const postureScore = Math.round((smoothedPosture || 0.87) * 100);
+    const pressureValue = smoothedPressure || aggregate.pressureAvg || 0.62;
     const clenchRate = aggregate.clenchEvents > 0 ? aggregate.clenchPerHour : 3;
     const nasalPercent = aggregate.packetCount > 20 ? aggregate.nasalPercent : 94;
 
@@ -42,7 +50,7 @@ export default function HomeScreen({ navigation }) {
       clench: String(Math.round(clenchRate)),
       nasal: String(nasalPercent),
     };
-  }, [packet, aggregate]);
+  }, [smoothedPosture, smoothedPressure, aggregate]);
 
   const onRefresh = async () => {
     setRefreshing(true);

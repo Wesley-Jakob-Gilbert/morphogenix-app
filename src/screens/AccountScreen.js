@@ -1,55 +1,370 @@
-import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import {
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 
 export default function AccountScreen() {
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [postureTarget, setPostureTarget] = useState(80);
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.kicker}>ACCOUNT</Text>
-      <Text style={styles.title}>Account</Text>
-      <Text style={styles.body}>Profile and settings stub. About Us nests here in the next pass.</Text>
-      {Platform.OS === 'web' ? (
-        <Text style={styles.demoLock}>Demo Mode is always on for the web preview because browser sessions do not connect to MorphoGenix hardware.</Text>
-      ) : null}
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.kicker}>ACCOUNT</Text>
+        <Text style={styles.title}>You</Text>
+
+        {/* Profile */}
+        <Section title="Profile">
+          <View style={styles.profileRow}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>WG</Text>
+            </View>
+            <View style={styles.profileMeta}>
+              <Text style={styles.name}>Wes Gilbert</Text>
+              <Text style={styles.email}>wslgilbert50@gmail.com</Text>
+            </View>
+          </View>
+
+          <View style={styles.goalRow}>
+            <View>
+              <Text style={styles.goalLabel}>Posture target</Text>
+              <Text style={styles.goalValue}>{postureTarget}/100</Text>
+            </View>
+            <View style={styles.adjuster}>
+              <Pressable
+                onPress={() => setPostureTarget((v) => Math.max(50, v - 5))}
+                style={styles.adjustBtn}
+              >
+                <Text style={styles.adjustBtnText}>−</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => setPostureTarget((v) => Math.min(100, v + 5))}
+                style={styles.adjustBtn}
+              >
+                <Text style={styles.adjustBtnText}>+</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Section>
+
+        {/* Device */}
+        <Section title="Device">
+          <Row label="Status" value="Demo mode (no device connected)" valueAccent={colors.amber} />
+          <Row label="Last sync" value="—" />
+          <Row label="Battery" value="—" />
+        </Section>
+
+        {/* Preferences */}
+        <Section title="Preferences">
+          <Row label="Morphoday start hour" value="12:00 PM" />
+          <Row label="Color scale" value="0–100 normalized" />
+          <Row label="Demo Mode" value={Platform.OS === 'web' ? 'ON (locked on web)' : 'ON'} valueAccent={colors.teal} />
+          <Row label="Notifications" value="Off" />
+        </Section>
+
+        {/* About Us */}
+        <Section title="About">
+          <PushRow label="About MorphoGenix" onPress={() => setAboutOpen(true)} />
+          <Row label="Version" value="0.1.0 (web demo)" />
+          <PushRow
+            label="morphogenix.ai"
+            onPress={() => Linking.openURL('https://morphogenix.ai')}
+          />
+        </Section>
+
+        {/* Legal */}
+        <Section title="Legal">
+          <PushRow label="Privacy Policy" onPress={() => {}} />
+          <PushRow label="Terms of Service" onPress={() => {}} />
+        </Section>
+
+        <View style={{ height: spacing.xxl }} />
+      </ScrollView>
+
+      <Modal
+        visible={aboutOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAboutOpen(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalKicker}>ABOUT MORPHOGENIX</Text>
+            <Text style={styles.modalTitle}>Oral biometrics, mainstream.</Text>
+            <Text style={styles.modalBody}>
+              MorphoGenix is building the first wearable that turns the roof of your mouth into a daily
+              health signal. We map palatal pressure, posture, clenching, and nasal breathing — quietly,
+              continuously — so you can see how your body actually feels through the day.
+            </Text>
+            <Text style={styles.modalBody}>
+              Our mission is to make oral biometrics as routine as steps and heart rate, and to put that
+              data in your hands without a clinic visit.
+            </Text>
+
+            <Text style={styles.modalSection}>Team</Text>
+            <Text style={styles.modalLine}>Wes Gilbert · Founder</Text>
+
+            <Text style={styles.modalSection}>Version</Text>
+            <Text style={styles.modalLine}>0.1.0 (web demo)</Text>
+
+            <Pressable
+              onPress={() => Linking.openURL('https://morphogenix.ai')}
+              style={styles.modalLink}
+            >
+              <Text style={styles.modalLinkText}>morphogenix.ai →</Text>
+            </Pressable>
+
+            <Pressable onPress={() => setAboutOpen(false)} style={styles.modalClose}>
+              <Text style={styles.modalCloseText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+function Section({ title, children }) {
+  return (
+    <View style={styles.section}>
+      <Text style={styles.sectionHeader}>{title.toUpperCase()}</Text>
+      <View style={styles.sectionBody}>{children}</View>
     </View>
   );
 }
 
+function Row({ label, value, valueAccent }) {
+  return (
+    <View style={styles.row}>
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={[styles.rowValue, valueAccent ? { color: valueAccent } : null]}>{value}</Text>
+    </View>
+  );
+}
+
+function PushRow({ label, onPress }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+    >
+      <Text style={styles.rowLabel}>{label}</Text>
+      <Text style={styles.chevron}>›</Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-    backgroundColor: colors.navy,
+  safeArea: { flex: 1, backgroundColor: colors.navy },
+  content: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl,
   },
   kicker: {
     color: colors.teal,
-    fontSize: typography.sizes.caption,
+    fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
-    textAlign: 'center',
   },
   title: {
     color: colors.white,
     fontSize: typography.sizes.hero,
+    lineHeight: typography.lineHeights.hero,
     fontWeight: typography.weights.bold,
-    textAlign: 'center',
-    marginTop: spacing.sm,
+    marginTop: spacing.xs,
   },
-  body: {
+  section: {
+    marginTop: spacing.xl,
+  },
+  sectionHeader: {
+    color: colors.teal,
+    opacity: 0.7,
+    fontSize: typography.sizes.tiny,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 1.4,
+    marginBottom: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  sectionBody: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  profileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  avatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.teal,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+  },
+  avatarText: {
+    color: colors.navy,
+    fontSize: 20,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 1,
+  },
+  profileMeta: { flex: 1 },
+  name: {
+    color: colors.white,
+    fontSize: typography.sizes.callout,
+    fontWeight: typography.weights.bold,
+  },
+  email: {
+    color: colors.muted,
+    fontSize: typography.sizes.caption,
+    marginTop: 2,
+  },
+  goalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  goalLabel: {
+    color: colors.muted,
+    fontSize: typography.sizes.caption,
+  },
+  goalValue: {
+    color: colors.white,
+    fontSize: typography.sizes.callout,
+    fontWeight: typography.weights.bold,
+    marginTop: 2,
+  },
+  adjuster: {
+    flexDirection: 'row',
+  },
+  adjustBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.navy,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
+  },
+  adjustBtnText: {
+    color: colors.teal,
+    fontSize: 22,
+    fontWeight: typography.weights.bold,
+    lineHeight: 24,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  rowLabel: {
+    color: colors.white,
+    fontSize: typography.sizes.body,
+    fontWeight: typography.weights.medium,
+  },
+  rowValue: {
+    color: colors.muted,
+    fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.medium,
+  },
+  chevron: {
+    color: colors.muted,
+    fontSize: 22,
+    fontWeight: typography.weights.medium,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(11,18,32,0.85)',
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 24,
+    padding: spacing.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(41,224,200,0.2)',
+  },
+  modalKicker: {
+    color: colors.teal,
+    fontSize: typography.sizes.tiny,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 1.4,
+  },
+  modalTitle: {
+    color: colors.white,
+    fontSize: typography.sizes.title,
+    lineHeight: typography.lineHeights.title,
+    fontWeight: typography.weights.bold,
+    marginTop: spacing.xs,
+  },
+  modalBody: {
     color: colors.muted,
     fontSize: typography.sizes.body,
-    textAlign: 'center',
+    lineHeight: typography.lineHeights.body,
     marginTop: spacing.md,
   },
-  demoLock: {
+  modalSection: {
     color: colors.teal,
-    fontSize: typography.sizes.caption,
-    lineHeight: 20,
-    textAlign: 'center',
+    fontSize: typography.sizes.tiny,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 1.4,
     marginTop: spacing.lg,
+  },
+  modalLine: {
+    color: colors.white,
+    fontSize: typography.sizes.body,
+    fontWeight: typography.weights.medium,
+    marginTop: 4,
+  },
+  modalLink: {
+    marginTop: spacing.lg,
+  },
+  modalLinkText: {
+    color: colors.teal,
+    fontSize: typography.sizes.body,
+    fontWeight: typography.weights.bold,
+  },
+  modalClose: {
+    marginTop: spacing.xl,
+    alignSelf: 'flex-end',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderRadius: 999,
+    backgroundColor: colors.navy,
+  },
+  modalCloseText: {
+    color: colors.white,
+    fontWeight: typography.weights.bold,
+    fontSize: typography.sizes.caption,
   },
 });

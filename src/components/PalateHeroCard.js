@@ -10,36 +10,60 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { G, Path } from 'react-native-svg';
+import Svg, {
+  Circle,
+  ClipPath,
+  Defs,
+  Ellipse,
+  G,
+  Path,
+} from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import ColorScaleLegend from './ColorScaleLegend';
 
-const AnimatedPath = Animated.createAnimatedComponent(Path);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const ZONES = [
-  'M68 82 C74 54 91 33 117 24 L117 86 L68 86 Z',
-  'M123 24 C149 33 166 54 172 82 L123 86 Z',
-  'M48 122 C51 102 57 89 68 82 L117 86 L117 127 Z',
-  'M123 86 L172 82 C183 89 189 102 192 122 L123 127 Z',
-  'M38 163 C38 145 41 132 48 122 L117 127 L117 168 Z',
-  'M123 127 L192 122 C199 132 202 145 202 163 L123 168 Z',
-  'M45 207 C40 192 38 178 38 163 L117 168 L117 212 Z',
-  'M123 168 L202 163 C202 178 200 192 195 207 L123 212 Z',
-  'M60 245 C54 232 49 220 45 207 L117 212 L117 250 Z',
-  'M123 212 L195 207 C191 220 186 232 180 245 L123 250 Z',
-  'M82 274 C73 265 66 255 60 245 L117 250 L117 280 Z',
-  'M123 250 L180 245 C174 255 167 265 158 274 L123 280 Z',
-  'M96 294 C91 289 86 283 82 274 L117 280 L117 304 Z',
-  'M123 280 L158 274 C154 283 149 289 144 294 L123 304 Z',
-  'M107 312 C102 308 99 302 96 294 L117 304 L117 320 Z',
-  'M123 304 L144 294 C141 302 138 308 133 312 L123 320 Z',
+// 16-zone layout mapped onto a half-oval dome.
+// viewBox 0 0 280 200. Dome is centered at (140, 30..190).
+// Zones flow row-by-row from front (top of dome) to back (bottom opening).
+// We render them as large overlapping blurred circles so colors blend smoothly.
+const ZONE_POSITIONS = [
+  // Row 1 (front edge, narrow)
+  { cx: 110, cy: 60, r: 36 },
+  { cx: 170, cy: 60, r: 36 },
+  // Row 2
+  { cx: 90, cy: 95, r: 42 },
+  { cx: 140, cy: 92, r: 42 },
+  { cx: 190, cy: 95, r: 42 },
+  // Row 3 (widest)
+  { cx: 80, cy: 130, r: 46 },
+  { cx: 125, cy: 128, r: 44 },
+  { cx: 155, cy: 128, r: 44 },
+  { cx: 200, cy: 130, r: 46 },
+  // Row 4
+  { cx: 85, cy: 160, r: 42 },
+  { cx: 130, cy: 158, r: 40 },
+  { cx: 150, cy: 158, r: 40 },
+  { cx: 195, cy: 160, r: 42 },
+  // Row 5 (back, opening)
+  { cx: 100, cy: 180, r: 36 },
+  { cx: 140, cy: 180, r: 36 },
+  { cx: 180, cy: 180, r: 36 },
 ];
 
+// Half-oval dome path: wider than tall, gently rounded at top, opening at bottom.
+// Width ~ 240, Height ~ 170 inside viewBox 280x200.
+const DOME_PATH =
+  'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
+
 export default function PalateHeroCard({ packet, isStreaming }) {
-  const palate = Array.isArray(packet?.palate) && packet.palate.length === 16 ? packet.palate : fallbackPalate();
+  const palate =
+    Array.isArray(packet?.palate) && packet.palate.length === 16
+      ? packet.palate
+      : fallbackPalate();
   const pulse = useSharedValue(0.6);
 
   useEffect(() => {
@@ -77,35 +101,50 @@ export default function PalateHeroCard({ packet, isStreaming }) {
 
       <View style={styles.heroBody}>
         <View style={styles.svgWrap}>
-          <Svg width="100%" height="100%" viewBox="0 0 240 340">
+          <Svg width="100%" height="100%" viewBox="0 0 280 200">
+            <Defs>
+              {/* Soft blur to merge zones into a continuous color field */}
+              <ClipPath id="palate-clip">
+                <Path d={DOME_PATH} />
+              </ClipPath>
+            </Defs>
+
+            {/* Soft inner navy backing inside the dome (subtle base) */}
             <Path
-              d="M34 210 C31 135 43 77 78 44 C101 22 139 22 162 44 C197 77 209 135 206 210 C204 267 165 320 120 326 C75 320 36 267 34 210 Z"
+              d={DOME_PATH}
               fill={colors.navy}
-              stroke={colors.white}
-              strokeOpacity="0.18"
-              strokeWidth="3"
+              opacity="0.4"
             />
-            <Path d="M120 29 L120 320" stroke={colors.white} strokeOpacity="0.16" strokeWidth="2" />
-            <G stroke={colors.navy} strokeWidth="3" strokeLinejoin="round">
-              {ZONES.map((path, index) => (
-                <PalateZone key={path} path={path} value={palate[index]} />
+
+            {/* Blurred color zones, clipped to dome */}
+            <G clipPath="url(#palate-clip)">
+              {ZONE_POSITIONS.map((pos, index) => (
+                <PalateZoneBlob
+                  key={`zone-${index}`}
+                  cx={pos.cx}
+                  cy={pos.cy}
+                  r={pos.r}
+                  value={palate[index]}
+                />
               ))}
+              {/* Soft highlight ellipse to give a gentle "dome" look */}
+              <Ellipse
+                cx="140"
+                cy="55"
+                rx="90"
+                ry="22"
+                fill={colors.white}
+                opacity="0.05"
+              />
             </G>
+
+            {/* Outer outline only — 1px, very low opacity */}
             <Path
-              d="M63 218 C64 170 75 132 95 106"
-              stroke={colors.white}
-              strokeOpacity="0.38"
-              strokeWidth="4"
+              d={DOME_PATH}
               fill="none"
-              strokeLinecap="round"
-            />
-            <Path
-              d="M177 218 C176 170 165 132 145 106"
               stroke={colors.white}
-              strokeOpacity="0.38"
-              strokeWidth="4"
-              fill="none"
-              strokeLinecap="round"
+              strokeOpacity="0.2"
+              strokeWidth="1"
             />
           </Svg>
         </View>
@@ -115,12 +154,12 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function PalateZone({ path, value }) {
+function PalateZoneBlob({ cx, cy, r, value }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
     normalized.value = withTiming(normalizePressure(value), {
-      duration: 260,
+      duration: 320,
       easing: Easing.out(Easing.cubic),
     });
   }, [value, normalized]);
@@ -128,12 +167,20 @@ function PalateZone({ path, value }) {
   const animatedProps = useAnimatedProps(() => ({
     fill: interpolateColor(
       normalized.value,
-      [0, 0.64, 1],
+      [0, 0.5, 1],
       [colors.teal, colors.amber, colors.violet]
     ),
   }));
 
-  return <AnimatedPath d={path} animatedProps={animatedProps} opacity="0.94" />;
+  return (
+    <AnimatedCircle
+      cx={cx}
+      cy={cy}
+      r={r}
+      animatedProps={animatedProps}
+      opacity="0.55"
+    />
+  );
 }
 
 function normalizePressure(newtons) {
@@ -142,7 +189,10 @@ function normalizePressure(newtons) {
 }
 
 function fallbackPalate() {
-  return [0.58, 0.6, 0.56, 0.62, 0.55, 0.64, 0.52, 0.59, 0.5, 0.57, 0.48, 0.54, 0.46, 0.51, 0.44, 0.49];
+  return [
+    0.58, 0.6, 0.56, 0.62, 0.55, 0.64, 0.52, 0.59, 0.5, 0.57, 0.48, 0.54, 0.46,
+    0.51, 0.44, 0.49,
+  ];
 }
 
 const styles = StyleSheet.create({
@@ -192,12 +242,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
   heroBody: {
-    minHeight: 320,
+    minHeight: 240,
     flexDirection: 'row',
     alignItems: 'center',
   },
   svgWrap: {
     flex: 1,
-    height: 320,
+    height: 240,
   },
 });
