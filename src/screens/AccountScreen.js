@@ -36,7 +36,7 @@ export default function AccountScreen() {
             </View>
             <View style={styles.profileMeta}>
               <Text style={styles.name}>Wes Gilbert</Text>
-              <Text style={styles.email}>wslgilbert50@gmail.com</Text>
+              <Text style={styles.email}>wes@morphogenix.ai</Text>
             </View>
           </View>
 
