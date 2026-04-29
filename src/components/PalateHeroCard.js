@@ -11,12 +11,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
-  Circle,
   ClipPath,
   Defs,
-  Ellipse,
   G,
   Path,
+  Rect,
 } from 'react-native-svg';
 
 import colors from '../theme/colors';
@@ -24,40 +23,24 @@ import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import ColorScaleLegend from './ColorScaleLegend';
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
-// 16-zone layout mapped onto a half-oval dome.
-// viewBox 0 0 280 200. Dome is centered at (140, 30..190).
-// Zones flow row-by-row from front (top of dome) to back (bottom opening).
-// We render them as large overlapping blurred circles so colors blend smoothly.
-const ZONE_POSITIONS = [
-  // Row 1 (front edge, narrow)
-  { cx: 110, cy: 60, r: 36 },
-  { cx: 170, cy: 60, r: 36 },
-  // Row 2
-  { cx: 90, cy: 95, r: 42 },
-  { cx: 140, cy: 92, r: 42 },
-  { cx: 190, cy: 95, r: 42 },
-  // Row 3 (widest)
-  { cx: 80, cy: 130, r: 46 },
-  { cx: 125, cy: 128, r: 44 },
-  { cx: 155, cy: 128, r: 44 },
-  { cx: 200, cy: 130, r: 46 },
-  // Row 4
-  { cx: 85, cy: 160, r: 42 },
-  { cx: 130, cy: 158, r: 40 },
-  { cx: 150, cy: 158, r: 40 },
-  { cx: 195, cy: 160, r: 42 },
-  // Row 5 (back, opening)
-  { cx: 100, cy: 180, r: 36 },
-  { cx: 140, cy: 180, r: 36 },
-  { cx: 180, cy: 180, r: 36 },
-];
-
-// Half-oval dome path: wider than tall, gently rounded at top, opening at bottom.
-// Width ~ 240, Height ~ 170 inside viewBox 280x200.
+// Discrete 4x4 grid mirroring the 16 FSR sensors on the device.
+// Cells are clipped to a half-oval dome so the corner cells get cropped naturally.
+//
+// viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220), y in [25..185] (H=160).
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
+
+const GRID_X = 30;
+const GRID_Y = 25;
+const GRID_W = 220;
+const GRID_H = 160;
+const COLS = 4;
+const ROWS = 4;
+const GAP = 4;
+const CELL_W = (GRID_W - GAP * (COLS + 1)) / COLS;
+const CELL_H = (GRID_H - GAP * (ROWS + 1)) / ROWS;
 
 export default function PalateHeroCard({ packet, isStreaming }) {
   const palate =
@@ -103,47 +86,40 @@ export default function PalateHeroCard({ packet, isStreaming }) {
         <View style={styles.svgWrap}>
           <Svg width="100%" height="100%" viewBox="0 0 280 200">
             <Defs>
-              {/* Soft blur to merge zones into a continuous color field */}
               <ClipPath id="palate-clip">
                 <Path d={DOME_PATH} />
               </ClipPath>
             </Defs>
 
-            {/* Soft inner navy backing inside the dome (subtle base) */}
-            <Path
-              d={DOME_PATH}
-              fill={colors.navy}
-              opacity="0.4"
-            />
+            {/* Subtle navy backing inside the dome — shows through the 1px gaps */}
+            <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* Blurred color zones, clipped to dome */}
+            {/* Discrete 4x4 sensor grid, clipped to the dome */}
             <G clipPath="url(#palate-clip)">
-              {ZONE_POSITIONS.map((pos, index) => (
-                <PalateZoneBlob
-                  key={`zone-${index}`}
-                  cx={pos.cx}
-                  cy={pos.cy}
-                  r={pos.r}
-                  value={palate[index]}
-                />
-              ))}
-              {/* Soft highlight ellipse to give a gentle "dome" look */}
-              <Ellipse
-                cx="140"
-                cy="55"
-                rx="90"
-                ry="22"
-                fill={colors.white}
-                opacity="0.05"
-              />
+              {palate.map((value, index) => {
+                const col = index % COLS;
+                const row = Math.floor(index / COLS);
+                const x = GRID_X + GAP + col * (CELL_W + GAP);
+                const y = GRID_Y + GAP + row * (CELL_H + GAP);
+                return (
+                  <PalateCell
+                    key={`cell-${index}`}
+                    x={x}
+                    y={y}
+                    width={CELL_W}
+                    height={CELL_H}
+                    value={value}
+                  />
+                );
+              })}
             </G>
 
-            {/* Outer outline only — 1px, very low opacity */}
+            {/* Outer outline — 1px, very low opacity */}
             <Path
               d={DOME_PATH}
               fill="none"
               stroke={colors.white}
-              strokeOpacity="0.2"
+              strokeOpacity="0.22"
               strokeWidth="1"
             />
           </Svg>
@@ -154,12 +130,12 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function PalateZoneBlob({ cx, cy, r, value }) {
+function PalateCell({ x, y, width, height, value }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
     normalized.value = withTiming(normalizePressure(value), {
-      duration: 320,
+      duration: 300,
       easing: Easing.out(Easing.cubic),
     });
   }, [value, normalized]);
@@ -173,12 +149,14 @@ function PalateZoneBlob({ cx, cy, r, value }) {
   }));
 
   return (
-    <AnimatedCircle
-      cx={cx}
-      cy={cy}
-      r={r}
+    <AnimatedRect
+      x={x}
+      y={y}
+      width={width}
+      height={height}
+      rx={3}
+      ry={3}
       animatedProps={animatedProps}
-      opacity="0.55"
     />
   );
 }
