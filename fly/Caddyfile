@@ -1,0 +1,20 @@
+# Caddyfile for the MorphoGenix bench build.
+# Serves the static Expo web export with SPA fallback and a noindex header
+# (we don't want bench builds showing up in Google).
+
+:8080 {
+    root * /srv/dist
+
+    # Tell crawlers this is not a public site.
+    header X-Robots-Tag "noindex, nofollow"
+
+    # Light caching — bench changes often, don't let users get stuck on stale JS.
+    header Cache-Control "public, max-age=60, must-revalidate"
+
+    # Tight CSP-friendly defaults; Expo web is a static SPA.
+    encode gzip zstd
+    file_server
+
+    # SPA fallback so deep links like /demo/analytics resolve to index.html.
+    try_files {path} {path}/ /index.html
+}
