@@ -2,19 +2,29 @@
  * useLiveBleFlag — returns true on the bench build when the user has opted
  * into live BLE mode via `?live=ble` in the URL.
  *
- * Why this exists separately from settingsStore.demoMode:
- *   The settings store hard-codes `demoMode = true` on web (see
- *   store/settingsStore.js — every setter has `isWeb ? true : ...`). That's
- *   intentional so morphogenix.ai/demo can never be flipped into a half-broken
- *   "live" state by a curious visitor. We don't want to weaken that invariant.
+ * Hydration safety:
+ *   Expo Router uses static rendering — every page is prerendered on the
+ *   server (Node, no window) and then hydrated on the client. If this hook
+ *   returned `true` on first client render but `false` during server render,
+ *   the React trees would diverge and React 18 would throw "hydration
+ *   mismatch" (minified error #418), tearing the entire tree down. That
+ *   manifested as a click-but-no-chooser bug because the unmounted button
+ *   stopped responding to events.
  *
- *   Instead, the bench build exposes an explicit, opt-in URL flag:
+ *   Fix: ALWAYS return false on the very first render (server AND client),
+ *   then flip to the real value inside useEffect, which only runs after the
+ *   first commit. This makes the first client render byte-identical to the
+ *   server output. The Connect card appears one frame later — visually
+ *   indistinguishable, structurally hydration-safe.
+ *
+ * Why this hook exists separately from settingsStore.demoMode:
+ *   The settings store hard-codes `demoMode = true` on web (see
+ *   store/settingsStore.js). That's intentional so morphogenix.ai/demo can
+ *   never be flipped into a half-broken "live" state by a curious visitor.
+ *   We don't want to weaken that invariant. The bench build instead exposes
+ *   an explicit, opt-in URL flag:
  *
  *     https://morphogenix-app.fly.dev/demo/?live=ble
- *
- *   Production (morphogenix.ai/demo) ignores the flag because the public
- *   landing page deliberately doesn't ship the BleStreamer code path on the
- *   "go-live" branch (we control that with a build-time gate later).
  *
  * On native (iOS/Android) this returns false; the native app uses
  * settingsStore.demoMode as before, since BLE there will eventually go
@@ -37,10 +47,15 @@ function readFlagFromLocation() {
 }
 
 export default function useLiveBleFlag() {
-  // Initialize from the current URL. SSR/prerender returns false safely.
-  const [enabled, setEnabled] = useState(readFlagFromLocation);
+  // CRITICAL: initial value MUST match server prerender (which has no
+  // window). Always start at `false`, regardless of URL, then upgrade in
+  // useEffect after hydration is complete.
+  const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
+    // Runs only on the client, after first commit. Safe to read window.
+    setEnabled(readFlagFromLocation());
+
     if (Platform.OS !== 'web') return undefined;
     if (typeof window === 'undefined') return undefined;
 

@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useEffect, useMemo, useRef, useState
 
 import useLiveBleFlag from '../../hooks/useLiveBleFlag';
 import useSettingsStore from '../../store/settingsStore';
-import BleStreamer from './BleStreamer';
+import BleStreamer, { isWebBluetoothAvailable } from './BleStreamer';
 import DemoStreamer from './DemoStreamer';
 
 export const StreamerContext = createContext({
@@ -94,9 +94,14 @@ export default function StreamerProvider({ children }) {
     streamer.disconnect();
   }, []);
 
-  const isBleSupported = useMemo(() => {
-    if (typeof navigator === 'undefined') return false;
-    return Boolean(navigator.bluetooth && navigator.bluetooth.requestDevice);
+  // Hydration-safe Web Bluetooth capability check.
+  // Server prerender has no `navigator` global, so referencing it during
+  // render would throw and tear down the tree. We start at `false` (matches
+  // server output exactly), then flip to the real value in useEffect once
+  // we're guaranteed to be on the client.
+  const [isBleSupported, setIsBleSupported] = useState(false);
+  useEffect(() => {
+    setIsBleSupported(isWebBluetoothAvailable());
   }, []);
 
   const value = useMemo(
