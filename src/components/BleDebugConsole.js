@@ -54,9 +54,17 @@ export default function BleDebugConsole() {
       typeof navigator !== 'undefined' &&
       typeof navigator.bluetooth !== 'undefined' &&
       typeof navigator.bluetooth.requestDevice === 'function';
-    append(`mount  source=${source}  isBleSupported=${isBleSupported}  hasBT=${hasBT}`);
+    append(`mount  liveBle=${liveBle}  isBleSupported=${isBleSupported}  hasBT=${hasBT}`);
     append(`UA  ${ua.slice(0, 120)}`);
   }, [liveBle]);
+
+  // Track source separately so we can see the moment the provider swaps from
+  // DemoStreamer to BleStreamer (which happens one tick after mount because
+  // useLiveBleFlag is a hydration-safe deferred read).
+  useEffect(() => {
+    if (!liveBle) return;
+    append(`source -> ${source}`);
+  }, [liveBle, source]);
 
   // Log every status transition.
   useEffect(() => {

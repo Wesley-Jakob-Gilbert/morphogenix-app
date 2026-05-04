@@ -63,6 +63,44 @@ const NOTIFY_WATCHDOG_MS = 2000;
 // Tiny on-screen-log helper. The bench BleDebugConsole component drains this
 // buffer ~4x/sec so the user can see what's happening without DevTools open.
 // Safe to call on the server (no-op when window is undefined).
+/**
+ * Map a Web Bluetooth (or platform) error to a short, plain-English message
+ * that's actually useful to a non-technical user. The chooser is the most
+ * common source of cryptic errors — NotFoundError can mean either "user
+ * cancelled" OR "no Bluetooth radio installed," and the message string is the
+ * only way to tell them apart on Chrome.
+ */
+export function friendlyBleError(err) {
+  if (!err) return 'Unknown error.';
+  const name = err.name || '';
+  const msg = (err.message || String(err)).toLowerCase();
+
+  // No physical adapter / OS-level absence.
+  if (msg.includes('bluetooth adapter not available')) {
+    return "This computer doesn't have a Bluetooth adapter, or Chrome can't see one. Plug in a USB BLE dongle, or try this page on a phone or laptop with built-in Bluetooth.";
+  }
+  if (msg.includes('bluetooth adapter is off') || msg.includes('radio is off')) {
+    return 'Bluetooth is turned off. Enable it in your system settings and try again.';
+  }
+  if (msg.includes('bluetooth radio is not authorized') || msg.includes('permission')) {
+    return "The browser isn't authorized to use Bluetooth. Check Site Settings → Bluetooth in chrome://settings.";
+  }
+  if (msg.includes('user denied') || msg.includes('chooser cancelled')) {
+    return 'Cancelled. Tap Connect again when ready.';
+  }
+  if (name === 'NotSupportedError') {
+    return "This browser supports Web Bluetooth but the request isn't supported here. Try Chrome on desktop.";
+  }
+  if (name === 'SecurityError') {
+    return 'Web Bluetooth blocked by the page security context. The site must be served over HTTPS.';
+  }
+  if (name === 'NetworkError') {
+    return 'Lost the GATT link. Move closer to the device and try again.';
+  }
+  // Fallback: surface the raw message but keep it readable.
+  return err.message || String(err);
+}
+
 function debugLog(msg) {
   if (typeof window === 'undefined') return;
   if (!Array.isArray(window.__morphogenix_bleLog)) {
@@ -163,16 +201,22 @@ export default class BleStreamer {
     } catch (err) {
       // Most common: user cancelled the chooser (NotFoundError). Treat as
       // a benign return to idle, not a hard error.
-      const benign = err && (err.name === 'NotFoundError' || err.name === 'AbortError');
       const errLabel = `${(err && err.name) || 'Error'}: ${(err && err.message) || String(err)}`;
-      if (benign) {
-        debugLog(`chooser cancelled (${errLabel})`);
+      const rawMsg = (err && err.message) || '';
+      // True user cancel = AbortError, OR NotFoundError with a 'user' phrase.
+      // NotFoundError WITHOUT 'user' usually means "no adapter / off / blocked"
+      // and we want to surface that as a real, actionable error instead of
+      // silently snapping back to idle.
+      const userCancelled =
+        (err && err.name === 'AbortError') ||
+        (err && err.name === 'NotFoundError' && /user/i.test(rawMsg));
+      if (userCancelled) {
+        debugLog(`chooser cancelled by user (${errLabel})`);
         this.emitStatus('idle', null);
         return;
       }
       debugLog(`chooser FAILED ${errLabel}`);
-      const reason = (err && err.message) || String(err);
-      this.emitStatus('error', reason);
+      this.emitStatus('error', friendlyBleError(err));
       throw err;
     }
 
@@ -204,9 +248,9 @@ export default class BleStreamer {
       this.emitStatus('connected', this.device.name || this.deviceNameFilter);
       this.armWatchdog();
     } catch (err) {
-      const reason = (err && err.message) || String(err);
-      debugLog(`GATT/notify FAILED ${reason}`);
-      this.emitStatus('error', reason);
+      const errLabel = `${(err && err.name) || 'Error'}: ${(err && err.message) || String(err)}`;
+      debugLog(`GATT/notify FAILED ${errLabel}`);
+      this.emitStatus('error', friendlyBleError(err));
       this.disconnect();
       throw err;
     }
