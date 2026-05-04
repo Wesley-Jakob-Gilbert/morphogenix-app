@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import BleConnectCard from '../components/BleConnectCard';
+import BleDebugConsole from '../components/BleDebugConsole';
 import DemoBannerPill from '../components/DemoBannerPill';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
@@ -89,6 +90,7 @@ export default function HomeScreen({ navigation }) {
 
         <DemoBannerPill />
         <BleConnectCard />
+        <BleDebugConsole />
         <PalateHeroCard packet={packet} isStreaming={isStreaming} />
         <WearTimeCaption label={wearTime.label} />
 

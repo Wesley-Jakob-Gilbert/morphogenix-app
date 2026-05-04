@@ -23,6 +23,7 @@
 import React, { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import useIsClient from '../hooks/useIsClient';
 import useLiveBleFlag from '../hooks/useLiveBleFlag';
 import { StreamerContext } from '../services/streamer/StreamerProvider';
 import colors from '../theme/colors';
@@ -30,9 +31,18 @@ import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 
 export default function BleConnectCard() {
+  // Two-stage gate, both required:
+  //   1. useIsClient() returns false on first commit so the entire card stays
+  //      out of the hydration-comparison tree. This guarantees React 19 never
+  //      tears down the parent on a hydration mismatch from anything inside
+  //      this card (capability checks, URL flag, status state, etc).
+  //   2. useLiveBleFlag() then gates by ?live=ble so production morphogenix.ai
+  //      remains visually identical (the card never appears off the bench).
+  const isClient = useIsClient();
   const liveBle = useLiveBleFlag();
   const { bleStatus, connect, disconnect, isBleSupported, packet } = useContext(StreamerContext);
 
+  if (!isClient) return null;
   if (!liveBle) return null;
 
   const state = bleStatus?.state || 'idle';

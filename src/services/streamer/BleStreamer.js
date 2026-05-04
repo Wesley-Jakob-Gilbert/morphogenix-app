@@ -60,6 +60,19 @@ const PALATE_ZONE_COUNT = 16;
 // a warning. Firmware should send 10 packets/sec, so >1.5s of silence is bad.
 const NOTIFY_WATCHDOG_MS = 2000;
 
+// Tiny on-screen-log helper. The bench BleDebugConsole component drains this
+// buffer ~4x/sec so the user can see what's happening without DevTools open.
+// Safe to call on the server (no-op when window is undefined).
+function debugLog(msg) {
+  if (typeof window === 'undefined') return;
+  if (!Array.isArray(window.__morphogenix_bleLog)) {
+    window.__morphogenix_bleLog = [];
+  }
+  window.__morphogenix_bleLog.push(msg);
+  // eslint-disable-next-line no-console
+  if (typeof console !== 'undefined' && console.log) console.log('[BLE]', msg);
+}
+
 export default class BleStreamer {
   constructor({ deviceNameFilter = DEVICE_NAME_FILTER } = {}) {
     this.deviceNameFilter = deviceNameFilter;
@@ -121,48 +134,78 @@ export default class BleStreamer {
    * (e.g. button onPress) due to browser security constraints.
    */
   async connect() {
+    debugLog('connect() called');
     if (!isWebBluetoothAvailable()) {
       const reason =
         'Web Bluetooth is not available in this browser. Use Chrome or Edge on desktop, or Chrome on Android.';
+      debugLog(`abort: ${reason}`);
       this.emitStatus('error', reason);
       throw new Error(reason);
     }
 
+    let chooserDevice = null;
     try {
-      this.emitStatus('scanning', null);
-
+      debugLog(`requestDevice filter=name:"${this.deviceNameFilter}"`);
+      // CRITICAL: requestDevice() MUST be the very first thing we do, with
+      // ZERO awaits or setState calls in front of it. Browsers consume the
+      // user-activation token after the first microtask boundary, and React
+      // setState during a click handler can schedule synchronous flushes that
+      // burn the token before requestDevice() ever runs. Symptom: the chooser
+      // never appears even though the click registers and the screen flickers.
+      //
       // Filter by both name and service UUID. Listing the service UUID in
       // optionalServices is also required so we can access it after pairing.
-      this.device = await navigator.bluetooth.requestDevice({
+      chooserDevice = await navigator.bluetooth.requestDevice({
         filters: [{ name: this.deviceNameFilter }],
         optionalServices: [NUS_SERVICE_UUID],
       });
+      debugLog(`chooser returned device name="${chooserDevice && chooserDevice.name}"`);
+    } catch (err) {
+      // Most common: user cancelled the chooser (NotFoundError). Treat as
+      // a benign return to idle, not a hard error.
+      const benign = err && (err.name === 'NotFoundError' || err.name === 'AbortError');
+      const errLabel = `${(err && err.name) || 'Error'}: ${(err && err.message) || String(err)}`;
+      if (benign) {
+        debugLog(`chooser cancelled (${errLabel})`);
+        this.emitStatus('idle', null);
+        return;
+      }
+      debugLog(`chooser FAILED ${errLabel}`);
+      const reason = (err && err.message) || String(err);
+      this.emitStatus('error', reason);
+      throw err;
+    }
+
+    // From here on out, we have a paired device but still need to connect to
+    // its GATT server and subscribe to the TX characteristic. Status updates
+    // and setStates are now safe — the user-gesture window is no longer
+    // relevant once requestDevice() has resolved.
+    try {
+      this.device = chooserDevice;
 
       this.device.addEventListener('gattserverdisconnected', this.handleDisconnect);
 
       this.emitStatus('connecting', this.device.name || this.deviceNameFilter);
 
       this.server = await this.device.gatt.connect();
+      debugLog('GATT connected');
       const service = await this.server.getPrimaryService(NUS_SERVICE_UUID);
+      debugLog('NUS service acquired');
       this.txCharacteristic = await service.getCharacteristic(NUS_TX_CHAR_UUID);
+      debugLog('TX characteristic acquired');
 
       await this.txCharacteristic.startNotifications();
       this.txCharacteristic.addEventListener(
         'characteristicvaluechanged',
         this.handleNotification
       );
+      debugLog('notifications started — waiting for data');
 
       this.emitStatus('connected', this.device.name || this.deviceNameFilter);
       this.armWatchdog();
     } catch (err) {
-      // Most common: user cancelled the chooser (NotFoundError). Treat as
-      // a benign return to idle, not a hard error.
-      const benign = err && (err.name === 'NotFoundError' || err.name === 'AbortError');
-      if (benign) {
-        this.emitStatus('idle', null);
-        return;
-      }
       const reason = (err && err.message) || String(err);
+      debugLog(`GATT/notify FAILED ${reason}`);
       this.emitStatus('error', reason);
       this.disconnect();
       throw err;
