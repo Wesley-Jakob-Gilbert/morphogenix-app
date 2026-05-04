@@ -52,7 +52,7 @@ void setup() {
 
   startAdv();
 
-  Serial.println("MorphoGenix Phase 2: 1-channel FSR over BLE UART");
+  Serial.println("MorphoGenix Phase 2: 1-channel FSR over BLE UART (rev2: notifyEnabled gate removed)");
 }
 
 void loop() {
@@ -69,7 +69,19 @@ void loop() {
     Serial.println();
 
     // BLE notify
-    if (bleuart.notifyEnabled()) {
+    //
+    // We deliberately DO NOT gate on bleuart.notifyEnabled(). That helper
+    // checks whether the peer subscribed to the NUS RX characteristic (the
+    // one the central writes TO us on). Web Bluetooth never writes — it only
+    // subscribes to the TX characteristic to listen — so notifyEnabled() can
+    // return false for the entire session even when a phone or laptop is
+    // happily connected and listening. Gating writes on it caused the bench
+    // to stay silent forever (status: connected, no packets).
+    //
+    // bleuart.write() is a no-op when no central is connected at all, so it's
+    // safe to call unconditionally here. The Bluefruit library handles the
+    // "are we actually paired and notify-enabled on TX" question internally.
+    if (Bluefruit.connected()) {
       char buf[32];
       // FIX: one %lu for time, one %d for the single channel. The original
       // sketch had four %d slots and undefined behavior on the wire.

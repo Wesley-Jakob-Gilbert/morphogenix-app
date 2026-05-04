@@ -291,6 +291,12 @@ export default class BleStreamer {
     this.device = null;
     this.lineBuffer = '';
 
+    // Reset the one-shot diagnostic flags so the next connect attempt logs
+    // first-chunk / first-packet / parse-fail again.
+    this.loggedFirstChunk = false;
+    this.loggedFirstPacket = false;
+    this.loggedParseFail = false;
+
     this.emitStatus('idle', null);
   }
 
@@ -310,6 +316,20 @@ export default class BleStreamer {
     // Each notification is a few bytes of UTF-8. Append to the line buffer
     // and emit a packet for every complete '\n'-terminated line we see.
     const chunk = this.textDecoder.decode(value);
+
+    // First-byte diagnostic: log exactly once per connection so we can tell
+    // "firmware silent" from "firmware sending garbage" from "all good." The
+    // hex dump is capped at 32 bytes so we don't spam the on-screen log.
+    if (!this.loggedFirstChunk) {
+      this.loggedFirstChunk = true;
+      const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      const hex = Array.from(bytes.slice(0, 32))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join(' ');
+      const ascii = chunk.replace(/[^\x20-\x7e]/g, '.').slice(0, 40);
+      debugLog(`first chunk: ${value.byteLength}B  hex[${hex}]  ascii["${ascii}"]`);
+    }
+
     this.lineBuffer += chunk;
 
     let newlineIdx;
@@ -329,10 +349,29 @@ export default class BleStreamer {
     // Expected format: "<millisSinceBoot>,<adcValue>"
     // Tolerant parsing: skip lines that don't match.
     const parts = line.split(',');
-    if (parts.length < 2) return;
+    if (parts.length < 2) {
+      if (!this.loggedParseFail) {
+        this.loggedParseFail = true;
+        debugLog(`parse FAIL (no comma) line="${line.slice(0, 60)}"`);
+      }
+      return;
+    }
 
     const adcValue = Number.parseInt(parts[1], 10);
-    if (!Number.isFinite(adcValue)) return;
+    if (!Number.isFinite(adcValue)) {
+      if (!this.loggedParseFail) {
+        this.loggedParseFail = true;
+        debugLog(`parse FAIL (non-numeric adc) line="${line.slice(0, 60)}"`);
+      }
+      return;
+    }
+
+    // First-packet diagnostic: log the first successful parse so the user
+    // sees positive confirmation that data is flowing through the pipeline.
+    if (!this.loggedFirstPacket) {
+      this.loggedFirstPacket = true;
+      debugLog(`first packet OK  adc=${adcValue}  norm=${(adcValue / ADC_MAX).toFixed(3)}`);
+    }
 
     // Clamp to the 12-bit range so an out-of-spec firmware can't push the
     // UI into ugly states.
