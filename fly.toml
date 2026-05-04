@@ -1,35 +1,29 @@
-# Fly.io config for the MorphoGenix bench build.
+# fly.toml app configuration file generated for morphogenix-app on 2026-05-03T16:11:25Z
 #
-# This is the BENCH ring. Production is morphogenix-landing-page.fly.dev — a
-# different app with different config. This one serves the static Expo web
-# export of the morphogenix-app repo's `feature/ble-web-bluetooth` branch.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Deploy with:
-#   fly deploy --config fly.toml
-#
-# Region: ord (Chicago) is fine; change if you want lower latency.
 
-app = "morphogenix-bench"
-primary_region = "ord"
+app = 'morphogenix-app'
+primary_region = 'dfw'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
   [http_service.concurrency]
-    type = "requests"
-    soft_limit = 200
+    type = 'requests'
     hard_limit = 250
+    soft_limit = 200
 
-# Caddy is tiny; one shared-cpu-1x machine is plenty for bench traffic.
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
-  cpu_kind = "shared"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpu_kind = 'shared'
   cpus = 1
+  memory_mb = 256
