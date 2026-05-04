@@ -1,45 +1,61 @@
 # Caddyfile for the MorphoGenix bench build.
 #
-# Expo exports the static site with `app.json -> experiments.baseUrl = "/demo"`,
-# so the build artifact looks like:
+# REALITY CHECK (verified by running `expo export --platform web` locally):
+# Despite app.json having `experiments.baseUrl = "/demo"`, Expo writes the
+# bundle at the FLAT root of dist/, not under dist/demo/. The baseUrl only
+# affects the URL paths INSIDE index.html (asset hrefs become /demo/...).
 #
+# Layout:
 #   dist/
-#     demo/
-#       index.html
-#       favicon.ico
-#       _expo/static/js/web/index-<hash>.js
-#       _expo/static/css/...
-#       assets/...
+#     index.html              <- references /demo/_expo/... and /demo/favicon.ico
+#     favicon.ico
+#     _expo/static/js/web/index-<hash>.js
+#     assets/...
+#     +not-found.html
+#     _sitemap.html
 #
-# Two routing rules:
-#   1. /demo/*  -> serve from dist/demo (with SPA fallback to dist/demo/index.html
-#                  ONLY for unknown paths, NEVER for asset requests like .js/.css/.png).
-#   2. /         -> redirect to /demo so visiting the bare domain goes somewhere useful.
-#
-# Why the explicit @spa matcher: Caddy's default `try_files ... /index.html`
-# was matching too greedily and serving HTML for missing JS bundles, which the
-# browser then tried to parse as JavaScript -> "Unexpected token '<'" errors.
+# So our routing must:
+#   1. /                  -> 302 /demo/   (so the bare domain works)
+#   2. /demo  or /demo/   -> serve dist/index.html
+#   3. /demo/<path>       -> strip /demo/, look for <path> in dist/
+#                            (so /demo/_expo/... -> dist/_expo/...)
+#   4. SPA fallback for client-side routes, but ONLY for navigation requests,
+#      never for static asset requests (otherwise the browser parses HTML as
+#      JS and throws "Unexpected token '<'").
+
+{
+	# Log every request so we can see what's actually being served.
+	# Visible via `fly logs -a morphogenix-app`.
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
 
 :8080 {
-	# Bench-only: tell crawlers to ignore us.
+	# Bench-only: ask crawlers to skip us.
 	header X-Robots-Tag "noindex, nofollow"
-
-	# Light caching so bench iterations show up quickly.
 	header Cache-Control "public, max-age=60, must-revalidate"
-
 	encode gzip zstd
 
-	# Bare domain -> /demo so visiting the root URL doesn't 404.
+	# Per-vhost access log so individual requests show up in fly logs.
+	log {
+		output stdout
+		format console
+	}
+
+	# Bare domain -> /demo/ so root URL lands somewhere useful.
 	redir / /demo/ 302
 	redir /demo /demo/ 302
 
-	# Everything under /demo is served from dist/demo.
+	# /demo/* -> dist/* (handle_path strips the /demo prefix before matching files)
 	handle_path /demo/* {
-		root * /srv/dist/demo
+		root * /srv/dist
 
-		# SPA fallback: if the requested path is NOT an existing file or directory,
-		# serve index.html so client-side routes work. file_server runs after this
-		# and serves real files (JS, CSS, images, fonts) untouched.
+		# SPA fallback: if the stripped path is NOT an existing file and is NOT
+		# an asset extension, serve index.html so client-side routes resolve.
+		# Asset requests for missing files return a real 404 instead of HTML.
 		@spa {
 			not file
 			not path *.js *.css *.map *.json *.png *.jpg *.jpeg *.gif *.svg *.ico *.webp *.woff *.woff2 *.ttf *.otf *.mp4 *.webm
@@ -49,9 +65,8 @@
 		file_server
 	}
 
-	# Anything outside /demo (favicon at root, health checks, etc.) just 404s
-	# from the empty root. Add more handlers here later if needed.
+	# Anything outside /demo (favicon-at-root probes, random scanners, etc.) 404s.
 	handle {
-		respond "Not found" 404
+		respond "Not found - try /demo/" 404
 	}
 }
