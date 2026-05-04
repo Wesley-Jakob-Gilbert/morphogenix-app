@@ -1,20 +1,57 @@
 # Caddyfile for the MorphoGenix bench build.
-# Serves the static Expo web export with SPA fallback and a noindex header
-# (we don't want bench builds showing up in Google).
+#
+# Expo exports the static site with `app.json -> experiments.baseUrl = "/demo"`,
+# so the build artifact looks like:
+#
+#   dist/
+#     demo/
+#       index.html
+#       favicon.ico
+#       _expo/static/js/web/index-<hash>.js
+#       _expo/static/css/...
+#       assets/...
+#
+# Two routing rules:
+#   1. /demo/*  -> serve from dist/demo (with SPA fallback to dist/demo/index.html
+#                  ONLY for unknown paths, NEVER for asset requests like .js/.css/.png).
+#   2. /         -> redirect to /demo so visiting the bare domain goes somewhere useful.
+#
+# Why the explicit @spa matcher: Caddy's default `try_files ... /index.html`
+# was matching too greedily and serving HTML for missing JS bundles, which the
+# browser then tried to parse as JavaScript -> "Unexpected token '<'" errors.
 
 :8080 {
-    root * /srv/dist
+	# Bench-only: tell crawlers to ignore us.
+	header X-Robots-Tag "noindex, nofollow"
 
-    # Tell crawlers this is not a public site.
-    header X-Robots-Tag "noindex, nofollow"
+	# Light caching so bench iterations show up quickly.
+	header Cache-Control "public, max-age=60, must-revalidate"
 
-    # Light caching — bench changes often, don't let users get stuck on stale JS.
-    header Cache-Control "public, max-age=60, must-revalidate"
+	encode gzip zstd
 
-    # Tight CSP-friendly defaults; Expo web is a static SPA.
-    encode gzip zstd
-    file_server
+	# Bare domain -> /demo so visiting the root URL doesn't 404.
+	redir / /demo/ 302
+	redir /demo /demo/ 302
 
-    # SPA fallback so deep links like /demo/analytics resolve to index.html.
-    try_files {path} {path}/ /index.html
+	# Everything under /demo is served from dist/demo.
+	handle_path /demo/* {
+		root * /srv/dist/demo
+
+		# SPA fallback: if the requested path is NOT an existing file or directory,
+		# serve index.html so client-side routes work. file_server runs after this
+		# and serves real files (JS, CSS, images, fonts) untouched.
+		@spa {
+			not file
+			not path *.js *.css *.map *.json *.png *.jpg *.jpeg *.gif *.svg *.ico *.webp *.woff *.woff2 *.ttf *.otf *.mp4 *.webm
+		}
+		rewrite @spa /index.html
+
+		file_server
+	}
+
+	# Anything outside /demo (favicon at root, health checks, etc.) just 404s
+	# from the empty root. Add more handlers here later if needed.
+	handle {
+		respond "Not found" 404
+	}
 }
