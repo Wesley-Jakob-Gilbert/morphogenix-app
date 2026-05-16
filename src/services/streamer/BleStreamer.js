@@ -82,6 +82,36 @@ export const CHANNEL_MAP = Object.freeze([
 ]);
 // =========================================================================
 
+// =========================================================================
+// BINARY WIRE FORMAT — mirrored in firmware/phase2_palate_binary.ino
+// =========================================================================
+//
+//   Offset  Size  Field           Value / Meaning
+//   ------  ----  --------------  ----------------------------------------
+//   0       1     magic           0xA7
+//   1       1     version         0x01
+//   2       4     timestamp_ms    uint32 LE
+//   6       1     channel_count   uint8
+//   7       2*N   adc_values      uint16 LE per channel, 0..4095
+//   7+2*N   1     checksum        XOR of all preceding bytes
+//
+// Total = 8 + 2N bytes. N=1 → 10 bytes. N=3 → 14 bytes. Both fit in one
+// default-MTU BLE notification (20-byte payload).
+const BIN_MAGIC = 0xa7;
+const BIN_VERSION = 0x01;
+const BIN_HEADER_BYTES = 7;   // magic + ver + ts(4) + count
+const BIN_TRAILER_BYTES = 1;  // checksum
+
+// Auto-detect: the ASCII firmware sends '\n'-terminated text starting with
+// an ASCII digit (0x30..0x39). The binary firmware starts with 0xA7. The
+// magic byte was chosen specifically to be outside the ASCII printable
+// range so this sniff is unambiguous.
+function detectWireFormat(firstByte) {
+  if (firstByte === BIN_MAGIC) return 'binary';
+  return 'ascii';
+}
+// =========================================================================
+
 // How many zones the rest of the app expects in packet.palate. Phase 2 uses 1 FSR
 // but the UI averages across the array, so splatting works perfectly.
 const PALATE_ZONE_COUNT = 16;
@@ -157,6 +187,17 @@ export default class BleStreamer {
     // chars, but we still buffer in case a packet arrives across boundaries.
     this.lineBuffer = '';
     this.textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
+
+    // Binary-path reassembly state. Initialized here so handleNotification
+    // can never see undefined — disconnect() also resets these on every
+    // teardown so a stale buffer can't leak across reconnects.
+    this.binBuffer = null;
+    this.wireFormat = null;
+
+    // One-shot diagnostic flags. See disconnect() for the reset.
+    this.loggedFirstChunk = false;
+    this.loggedFirstPacket = false;
+    this.loggedParseFail = false;
 
     // Watchdog timer for "connected but silent" states.
     this.watchdogTimer = null;
@@ -320,6 +361,8 @@ export default class BleStreamer {
     this.server = null;
     this.device = null;
     this.lineBuffer = '';
+    this.binBuffer = null;
+    this.wireFormat = null;
 
     // Reset the one-shot diagnostic flags so the next connect attempt logs
     // first-chunk / first-packet / parse-fail again.
@@ -341,25 +384,44 @@ export default class BleStreamer {
 
   handleNotification(event) {
     const value = event.target && event.target.value; // DataView
-    if (!value || !this.textDecoder) return;
+    if (!value || value.byteLength === 0) return;
 
-    // Each notification is a few bytes of UTF-8. Append to the line buffer
-    // and emit a packet for every complete '\n'-terminated line we see.
-    const chunk = this.textDecoder.decode(value);
+    const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
 
-    // First-byte diagnostic: log exactly once per connection so we can tell
-    // "firmware silent" from "firmware sending garbage" from "all good." The
-    // hex dump is capped at 32 bytes so we don't spam the on-screen log.
+    // First-byte diagnostic + format auto-detect. Fires exactly once per
+    // connection so we can tell "firmware silent" from "firmware sending
+    // garbage" from "all good." The detected format is cached for the rest
+    // of the session so we don't re-sniff every notification.
     if (!this.loggedFirstChunk) {
       this.loggedFirstChunk = true;
-      const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      this.wireFormat = detectWireFormat(bytes[0]);
       const hex = Array.from(bytes.slice(0, 32))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join(' ');
-      const ascii = chunk.replace(/[^\x20-\x7e]/g, '.').slice(0, 40);
-      debugLog(`first chunk: ${value.byteLength}B  hex[${hex}]  ascii["${ascii}"]`);
+      const asciiPreview =
+        this.textDecoder
+          ?.decode(value)
+          .replace(/[^\x20-\x7e]/g, '.')
+          .slice(0, 40) || '';
+      debugLog(
+        `first chunk: ${value.byteLength}B  format=${this.wireFormat}  hex[${hex}]  ascii["${asciiPreview}"]`
+      );
     }
 
+    if (this.wireFormat === 'binary') {
+      this.handleBinaryChunk(bytes);
+    } else {
+      this.handleAsciiChunk(value);
+    }
+
+    // Keep the watchdog quiet while data is flowing.
+    this.armWatchdog();
+  }
+
+  // ---- ASCII path: legacy phase2_palate_1ch.ino sketch -------------
+  handleAsciiChunk(value) {
+    if (!this.textDecoder) return;
+    const chunk = this.textDecoder.decode(value);
     this.lineBuffer += chunk;
 
     let newlineIdx;
@@ -370,9 +432,90 @@ export default class BleStreamer {
         this.emitPacketFromLine(line);
       }
     }
+  }
 
-    // Keep the watchdog quiet while data is flowing.
-    this.armWatchdog();
+  // ---- Binary path: phase2_palate_binary.ino sketch ----------------
+  //
+  // Notifications can in principle arrive fragmented (BLE doesn't guarantee
+  // one notification = one application packet, even though at our MTU and
+  // packet size they almost always coincide). We accumulate into a byte
+  // buffer and pull complete packets off the front. Anything that doesn't
+  // start with the magic byte is treated as resync garbage and we scan
+  // forward to the next magic.
+  handleBinaryChunk(bytes) {
+    if (!this.binBuffer) this.binBuffer = new Uint8Array(0);
+
+    // Append incoming bytes to the accumulator.
+    const merged = new Uint8Array(this.binBuffer.length + bytes.length);
+    merged.set(this.binBuffer, 0);
+    merged.set(bytes, this.binBuffer.length);
+    this.binBuffer = merged;
+
+    let pos = 0;
+    while (pos < this.binBuffer.length) {
+      // Resync: skip bytes until we find a magic. This protects us from a
+      // mid-stream radio glitch or a partial packet left over from a prior
+      // connection.
+      if (this.binBuffer[pos] !== BIN_MAGIC) {
+        pos++;
+        continue;
+      }
+
+      // Need at least header + 1 channel + checksum before we can read
+      // channel_count and decide how long this packet is.
+      if (this.binBuffer.length - pos < BIN_HEADER_BYTES + 2 + BIN_TRAILER_BYTES) {
+        break;
+      }
+
+      const version = this.binBuffer[pos + 1];
+      if (version !== BIN_VERSION) {
+        if (!this.loggedParseFail) {
+          this.loggedParseFail = true;
+          debugLog(`parse FAIL (binary version=${version}, expected ${BIN_VERSION})`);
+        }
+        pos++; // skip this magic, try to resync
+        continue;
+      }
+
+      const channelCount = this.binBuffer[pos + 6];
+      const pktSize = BIN_HEADER_BYTES + 2 * channelCount + BIN_TRAILER_BYTES;
+
+      // Wait for the rest of the packet to arrive.
+      if (this.binBuffer.length - pos < pktSize) break;
+
+      // Verify checksum (XOR of every byte except the checksum itself).
+      let xorSum = 0;
+      for (let i = 0; i < pktSize - 1; i++) xorSum ^= this.binBuffer[pos + i];
+      const sentChecksum = this.binBuffer[pos + pktSize - 1];
+      if (xorSum !== sentChecksum) {
+        if (!this.loggedParseFail) {
+          this.loggedParseFail = true;
+          debugLog(
+            `parse FAIL (checksum: got 0x${sentChecksum.toString(16)}, expected 0x${xorSum.toString(16)})`
+          );
+        }
+        pos++; // skip this magic, try to resync
+        continue;
+      }
+
+      // Read fields. DataView is the right tool for guaranteed LE reads.
+      const dv = new DataView(
+        this.binBuffer.buffer,
+        this.binBuffer.byteOffset + pos,
+        pktSize
+      );
+      const timestampMs = dv.getUint32(2, /*littleEndian=*/ true);
+      const adcValues = new Array(channelCount);
+      for (let i = 0; i < channelCount; i++) {
+        adcValues[i] = dv.getUint16(BIN_HEADER_BYTES + 2 * i, true);
+      }
+
+      this.emitPacketFromBinary(timestampMs, adcValues);
+      pos += pktSize;
+    }
+
+    // Keep only the unconsumed tail for the next notification.
+    this.binBuffer = this.binBuffer.slice(pos);
   }
 
   emitPacketFromLine(line) {
@@ -396,21 +539,47 @@ export default class BleStreamer {
       return;
     }
 
-    // First-packet diagnostic: log the first successful parse so the user
-    // sees positive confirmation that data is flowing through the pipeline.
+    // Phase 2: single channel. When we add channels 1 and 2, the ASCII
+    // sketch will append more comma-separated ints in the same order as
+    // CHANNEL_MAP, and we'll loop here. For now we hand off as [adcValue].
+    this.emitPacketFromAdcArray([adcValue], /*formatLabel=*/ 'ascii');
+  }
+
+  emitPacketFromBinary(timestampMs, adcValues) {
+    // timestampMs is from the XIAO's millis() clock; not Date.now() but a
+    // monotonic millisecond count since the device booted. Useful for
+    // sample-rate diagnostics but the rest of the app expects t=Date.now(),
+    // so we don't propagate it here — yet. Reserved for when we add a
+    // "sample interval" debug overlay.
+    void timestampMs;
+    this.emitPacketFromAdcArray(adcValues, /*formatLabel=*/ 'binary');
+  }
+
+  // ---- Shared packet-shaping for both wire formats ----------------
+  // Maps a parsed adc[] array to the IStreamer packet contract the rest of
+  // the app consumes. Phase 2 has 1 channel today and reserves 2 more; the
+  // mapping rule for now is "splat channel 0 across all zones" because the
+  // UI averages the zones array. When we add channels 1 and 2 with real
+  // anatomical zoning, the splat becomes a proper zone-by-zone mapping.
+  emitPacketFromAdcArray(adcValues, formatLabel) {
+    if (!adcValues || adcValues.length === 0) return;
+
     if (!this.loggedFirstPacket) {
       this.loggedFirstPacket = true;
-      debugLog(`first packet OK  adc=${adcValue}  norm=${(adcValue / ADC_MAX).toFixed(3)}`);
+      const adc0 = adcValues[0];
+      debugLog(
+        `first packet OK (${formatLabel})  adc[0]=${adc0}  norm=${(adc0 / ADC_MAX).toFixed(3)}`
+      );
     }
 
-    // Clamp to the 12-bit range so an out-of-spec firmware can't push the
-    // UI into ugly states.
-    const clampedAdc = Math.max(0, Math.min(ADC_MAX, adcValue));
-    const normalized = clampedAdc / ADC_MAX;
+    // Clamp each channel to the 12-bit range so out-of-spec firmware can't
+    // push the UI into ugly states.
+    const clamped = adcValues.map((v) => Math.max(0, Math.min(ADC_MAX, v)));
+    const normalized = clamped.map((v) => v / ADC_MAX);
 
-    // Build a packet that matches the existing IStreamer contract, plus a
-    // couple of bench-only fields the Home screen can opt into.
-    const palateZones = new Array(PALATE_ZONE_COUNT).fill(normalized);
+    // Phase 2 mapping: splat channel 0 across all zones. See CHANNEL_MAP.
+    const palateZones = new Array(PALATE_ZONE_COUNT).fill(normalized[0]);
+
     const packet = {
       t: Date.now(),
       posture: 0, // unused in Phase 2
@@ -418,8 +587,9 @@ export default class BleStreamer {
       clenchEvent: false,
       nasal: false,
       // Bench-only extras (ignored by code that only reads the contract):
-      palateRaw: clampedAdc, // 0..4095 for the "raw: 2847" callout
-      palateNormalized: normalized, // 0..1 for direct gauge use
+      palateRaw: clamped[0],         // 0..4095 for the "raw: 2847" callout
+      palateNormalized: normalized[0], // 0..1 for direct gauge use
+      adcChannels: clamped,          // full array for future multi-channel UI
       source: 'ble-web',
     };
 
