@@ -42,7 +42,7 @@ void setup() {
     delay(10);
   }
 
-  pinMode(FSR_PIN_1, INPUT);
+  pinMode(FSR_PIN_PALATE_CENTER, INPUT);
 
   Bluefruit.begin();
   Bluefruit.setTxPower(4);
@@ -52,7 +52,7 @@ void setup() {
 
   startAdv();
 
-  Serial.println("MorphoGenix Phase 2: 1-channel FSR over BLE UART (rev2: notifyEnabled gate removed)");
+  Serial.println("MorphoGenix Phase 2: 1-channel FSR over BLE UART (rev3: named channel map)");
 }
 
 void loop() {
@@ -60,12 +60,15 @@ void loop() {
   if (now - lastSampleMs >= SAMPLE_INTERVAL_MS) {
     lastSampleMs = now;
 
-    int fsr1 = readAveraged(FSR_PIN_1);
+    int adc0 = readAveraged(FSR_PIN_PALATE_CENTER);  // FSR_PALATE_CENTER
 
-    // Serial debug
+    // Serial debug — same wire format as BLE for easy cross-checking with
+    // the Arduino Serial Monitor. If the BLE log on the web bench ever shows
+    // a different value than the Serial Monitor at the same instant, the
+    // formatting (not the sensor or the radio) is the bug.
     Serial.print(now);
     Serial.print(",");
-    Serial.print(fsr1);
+    Serial.print(adc0);
     Serial.println();
 
     // BLE notify
@@ -86,7 +89,7 @@ void loop() {
       // FIX: one %lu for time, one %d for the single channel. The original
       // sketch had four %d slots and undefined behavior on the wire.
       int len = snprintf(buf, sizeof(buf), "%lu,%d\n",
-                         (unsigned long)now, fsr1);
+                         (unsigned long)now, adc0);
       if (len > 0 && len < (int)sizeof(buf)) {
         bleuart.write((uint8_t *)buf, len);
       }

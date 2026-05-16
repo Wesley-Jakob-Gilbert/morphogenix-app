@@ -52,6 +52,36 @@ const DEVICE_NAME_FILTER = 'MorphoGenixSOD';
 // FSR ADC range on the nRF52840 in 12-bit mode. Used to normalize 0..4095 -> 0..1.
 const ADC_MAX = 4095;
 
+// =========================================================================
+// CHANNEL MAP — MUST match firmware/phase2_palate_1ch/phase2_palate_1ch.ino
+// =========================================================================
+//
+// The firmware sends ASCII lines of the form:
+//     "<millisSinceBoot>,<adc[0]>[,<adc[1]>,<adc[2]>...]\n"
+//
+// Wire index | Logical channel    | Anatomical region        | XIAO pin
+// -----------+--------------------+--------------------------+---------
+//   adc[0]   | FSR_PALATE_CENTER  | Hard palate, midline     | A0
+//
+// Future channels (reserved positions — firmware will append in this order):
+//   adc[1]   | FSR_PALATE_LEFT    | Hard palate, left side   | A1
+//   adc[2]   | FSR_PALATE_RIGHT   | Hard palate, right side  | A2
+//
+// IMPORTANT: This order is a CONTRACT with the firmware. If you reorder the
+// physical wiring, update BOTH this comment AND the matching CHANNEL MAP at
+// the top of phase2_palate_1ch.ino in the SAME commit. Otherwise the bench
+// will silently render the wrong zones, which is the single hardest class
+// of multi-channel bug to track down.
+//
+// Logical channel names — use these in code, never the bare index. When we
+// add channels 1 and 2, the parser will read them as CHANNEL_MAP[i].
+export const CHANNEL_MAP = Object.freeze([
+  { name: 'FSR_PALATE_CENTER', region: 'palate.center', pin: 'A0' },
+  // { name: 'FSR_PALATE_LEFT',   region: 'palate.left',   pin: 'A1' },
+  // { name: 'FSR_PALATE_RIGHT',  region: 'palate.right',  pin: 'A2' },
+]);
+// =========================================================================
+
 // How many zones the rest of the app expects in packet.palate. Phase 2 uses 1 FSR
 // but the UI averages across the array, so splatting works perfectly.
 const PALATE_ZONE_COUNT = 16;
