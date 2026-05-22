@@ -10,43 +10,59 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, {
-  ClipPath,
-  Defs,
-  G,
-  Path,
-  Rect,
-} from 'react-native-svg';
+import Svg, { Circle, Path } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import ColorScaleLegend from './ColorScaleLegend';
 
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Discrete 4x4 grid mirroring the 16 FSR sensors on the device.
-// Cells are clipped to a half-oval dome so the corner cells get cropped naturally.
+// 6 FSR sensors arranged 2 columns x 3 rows, matching the actual hardware
+// prototype. Each sensor is ~fingernail-sized, so the circles are small
+// relative to the half-dome shell.
 //
-// viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220), y in [25..185] (H=160).
+// viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220),
+// y in [25..185] (H=160). Dome center x = 140.
+//
+// Canonical sensor index mapping (top of dome = posterior/back,
+// bottom = anterior/front near teeth):
+//   0: back-left      1: back-right     (row 0, y ~ 75)
+//   2: middle-left    3: middle-right   (row 1, y ~ 110)
+//   4: front-left     5: front-right    (row 2, y ~ 145)
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
 
-const GRID_X = 30;
-const GRID_Y = 25;
-const GRID_W = 220;
-const GRID_H = 160;
-const COLS = 4;
-const ROWS = 4;
-const GAP = 4;
-const CELL_W = (GRID_W - GAP * (COLS + 1)) / COLS;
-const CELL_H = (GRID_H - GAP * (ROWS + 1)) / ROWS;
+const SENSOR_POSITIONS = [
+  { x: 115, y: 75 },   // 0: back-left
+  { x: 165, y: 75 },   // 1: back-right
+  { x: 115, y: 110 },  // 2: middle-left
+  { x: 165, y: 110 },  // 3: middle-right
+  { x: 115, y: 145 },  // 4: front-left
+  { x: 165, y: 145 },  // 5: front-right
+];
+
+const SENSOR_RADIUS = 11;
 
 export default function PalateHeroCard({ packet, isStreaming }) {
   const palate =
     Array.isArray(packet?.palate) && packet.palate.length === 16
       ? packet.palate
       : fallbackPalate();
+
+  // Pull 6 representative cells from the legacy 16-cell array (4x4 grid).
+  // We index into rows 0/1/2 cols 1/2 to roughly mirror the new 2x3 layout.
+  // The demo data layer stays 16-value; we'll redo natively for BLE later.
+  const sixValues = [
+    palate[1],   // back-left   (row 0, col 1)
+    palate[2],   // back-right  (row 0, col 2)
+    palate[5],   // mid-left    (row 1, col 1)
+    palate[6],   // mid-right   (row 1, col 2)
+    palate[9],   // front-left  (row 2, col 1)
+    palate[10],  // front-right (row 2, col 2)
+  ];
+
   const pulse = useSharedValue(0.6);
 
   useEffect(() => {
@@ -85,34 +101,19 @@ export default function PalateHeroCard({ packet, isStreaming }) {
       <View style={styles.heroBody}>
         <View style={styles.svgWrap}>
           <Svg width="100%" height="100%" viewBox="0 0 280 200">
-            <Defs>
-              <ClipPath id="palate-clip">
-                <Path d={DOME_PATH} />
-              </ClipPath>
-            </Defs>
-
-            {/* Subtle navy backing inside the dome — shows through the 1px gaps */}
+            {/* Subtle navy backing inside the dome */}
             <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* Discrete 4x4 sensor grid, clipped to the dome */}
-            <G clipPath="url(#palate-clip)">
-              {palate.map((value, index) => {
-                const col = index % COLS;
-                const row = Math.floor(index / COLS);
-                const x = GRID_X + GAP + col * (CELL_W + GAP);
-                const y = GRID_Y + GAP + row * (CELL_H + GAP);
-                return (
-                  <PalateCell
-                    key={`cell-${index}`}
-                    x={x}
-                    y={y}
-                    width={CELL_W}
-                    height={CELL_H}
-                    value={value}
-                  />
-                );
-              })}
-            </G>
+            {/* 6 FSR sensors: 2 cols x 3 rows, clustered in back-middle */}
+            {SENSOR_POSITIONS.map((pos, index) => (
+              <PalateDot
+                key={`sensor-${index}`}
+                cx={pos.x}
+                cy={pos.y}
+                r={SENSOR_RADIUS}
+                value={sixValues[index]}
+              />
+            ))}
 
             {/* Outer outline — 1px, very low opacity */}
             <Path
@@ -130,7 +131,7 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function PalateCell({ x, y, width, height, value }) {
+function PalateDot({ cx, cy, r, value }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
@@ -149,13 +150,13 @@ function PalateCell({ x, y, width, height, value }) {
   }));
 
   return (
-    <AnimatedRect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      rx={3}
-      ry={3}
+    <AnimatedCircle
+      cx={cx}
+      cy={cy}
+      r={r}
+      stroke={colors.navy}
+      strokeOpacity={0.6}
+      strokeWidth={1}
       animatedProps={animatedProps}
     />
   );
@@ -166,6 +167,8 @@ function normalizePressure(newtons) {
   return Math.max(0, Math.min(1, safeValue));
 }
 
+// Legacy 16-value fallback; only 6 indices are read by the new layout.
+// Kept 16-wide so DemoStreamer and other consumers stay untouched.
 function fallbackPalate() {
   return [
     0.58, 0.6, 0.56, 0.62, 0.55, 0.64, 0.52, 0.59, 0.5, 0.57, 0.48, 0.54, 0.46,
