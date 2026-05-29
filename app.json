@@ -6,11 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1220"
-    },
     "ios": {
       "supportsTablet": true
     },
@@ -26,8 +21,7 @@
       "output": "static"
     },
     "plugins": [
-      "expo-font",
-      "expo-router"
+      "expo-font"
     ],
     "experiments": {
       "baseUrl": "/demo"
