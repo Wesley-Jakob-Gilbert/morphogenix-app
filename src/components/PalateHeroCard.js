@@ -19,28 +19,36 @@ import ColorScaleLegend from './ColorScaleLegend';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// 6 FSR sensors arranged 2 columns x 3 rows, matching the actual hardware
-// prototype. Each sensor is ~fingernail-sized, so the circles are small
-// relative to the half-dome shell.
+// 6 FSR sensors matching the actual hardware prototype:
+//   - 4 palate sensors arranged in a trapezoid (back pair wider apart than
+//     front pair) sitting inside the half-dome shell.
+//   - 2 clench sensors positioned outside the dome at molar height (same Y
+//     as the back palate row) to detect teeth clenching.
+//
+// Each sensor is ~fingernail-sized; circles stay small relative to the
+// dome so the shape of the prototype reads clearly.
 //
 // viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220),
-// y in [25..185] (H=160). Dome center x = 140.
+// y in [25..185] (H=160). Dome center x = 140. Top of dome = posterior;
+// bottom of dome (flat edge) = anterior near teeth.
 //
-// Canonical sensor index mapping (top of dome = posterior/back,
-// bottom = anterior/front near teeth):
-//   0: back-left      1: back-right     (row 0, y ~ 75)
-//   2: middle-left    3: middle-right   (row 1, y ~ 110)
-//   4: front-left     5: front-right    (row 2, y ~ 145)
+// Canonical sensor index mapping:
+//   0: palate back-left    1: palate back-right    (trapezoid wide row, y=90)
+//   2: palate front-left   3: palate front-right   (trapezoid narrow row, y=145)
+//   4: molar clench-left   5: molar clench-right   (outside dome, y=90)
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
 
+const BACK_Y = 90;
+const FRONT_Y = 145;
+
 const SENSOR_POSITIONS = [
-  { x: 115, y: 75 },   // 0: back-left
-  { x: 165, y: 75 },   // 1: back-right
-  { x: 115, y: 110 },  // 2: middle-left
-  { x: 165, y: 110 },  // 3: middle-right
-  { x: 115, y: 145 },  // 4: front-left
-  { x: 165, y: 145 },  // 5: front-right
+  { x: 110, y: BACK_Y, kind: 'palate' },   // 0: back-left  (trapezoid wide)
+  { x: 170, y: BACK_Y, kind: 'palate' },   // 1: back-right (trapezoid wide)
+  { x: 120, y: FRONT_Y, kind: 'palate' },  // 2: front-left  (trapezoid narrow)
+  { x: 160, y: FRONT_Y, kind: 'palate' },  // 3: front-right (trapezoid narrow)
+  { x: 55,  y: BACK_Y, kind: 'clench' },   // 4: molar clench-left
+  { x: 225, y: BACK_Y, kind: 'clench' },   // 5: molar clench-right
 ];
 
 const SENSOR_RADIUS = 11;
@@ -52,16 +60,21 @@ export default function PalateHeroCard({ packet, isStreaming }) {
       : fallbackPalate();
 
   // Pull 6 representative cells from the legacy 16-cell array (4x4 grid).
-  // We index into rows 0/1/2 cols 1/2 to roughly mirror the new 2x3 layout.
-  // The demo data layer stays 16-value; we'll redo natively for BLE later.
+  // Palate sensors map to interior cells; molar/clench sensors map to outer
+  // edge cells of the 4x4 (cols 0 and 3) since those approximate molar regions.
+  // Demo data layer stays 16-value; we'll redo natively for BLE later.
   const sixValues = [
-    palate[1],   // back-left   (row 0, col 1)
-    palate[2],   // back-right  (row 0, col 2)
-    palate[5],   // mid-left    (row 1, col 1)
-    palate[6],   // mid-right   (row 1, col 2)
-    palate[9],   // front-left  (row 2, col 1)
-    palate[10],  // front-right (row 2, col 2)
+    palate[1],   // 0: palate back-left   (row 0, col 1)
+    palate[2],   // 1: palate back-right  (row 0, col 2)
+    palate[9],   // 2: palate front-left  (row 2, col 1)
+    palate[10],  // 3: palate front-right (row 2, col 2)
+    palate[4],   // 4: molar clench-left  (row 1, col 0 — outer edge)
+    palate[7],   // 5: molar clench-right (row 1, col 3 — outer edge)
   ];
+
+  // Connector path that traces the trapezoid through the 4 palate sensors —
+  // a subtle hint that those 4 form a coordinated array.
+  const trapezoidPath = `M${SENSOR_POSITIONS[0].x} ${SENSOR_POSITIONS[0].y} L${SENSOR_POSITIONS[1].x} ${SENSOR_POSITIONS[1].y} L${SENSOR_POSITIONS[3].x} ${SENSOR_POSITIONS[3].y} L${SENSOR_POSITIONS[2].x} ${SENSOR_POSITIONS[2].y} Z`;
 
   const pulse = useSharedValue(0.6);
 
@@ -104,7 +117,17 @@ export default function PalateHeroCard({ packet, isStreaming }) {
             {/* Subtle navy backing inside the dome */}
             <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* 6 FSR sensors: 2 cols x 3 rows, clustered in back-middle */}
+            {/* Faint trapezoid connector hinting the palate sensor array */}
+            <Path
+              d={trapezoidPath}
+              fill="none"
+              stroke={colors.white}
+              strokeOpacity="0.08"
+              strokeWidth="1"
+              strokeDasharray="3 4"
+            />
+
+            {/* 6 FSR sensors: 4 palate trapezoid + 2 molar clench */}
             {SENSOR_POSITIONS.map((pos, index) => (
               <PalateDot
                 key={`sensor-${index}`}
@@ -112,6 +135,7 @@ export default function PalateHeroCard({ packet, isStreaming }) {
                 cy={pos.y}
                 r={SENSOR_RADIUS}
                 value={sixValues[index]}
+                kind={pos.kind}
               />
             ))}
 
@@ -131,7 +155,7 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function PalateDot({ cx, cy, r, value }) {
+function PalateDot({ cx, cy, r, value, kind = 'palate' }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
@@ -149,16 +173,31 @@ function PalateDot({ cx, cy, r, value }) {
     ),
   }));
 
+  // Clench sensors get a subtle outer ring to visually distinguish them as a
+  // different sensor type (molar pressure) from the palate FSRs.
   return (
-    <AnimatedCircle
-      cx={cx}
-      cy={cy}
-      r={r}
-      stroke={colors.navy}
-      strokeOpacity={0.6}
-      strokeWidth={1}
-      animatedProps={animatedProps}
-    />
+    <>
+      {kind === 'clench' && (
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r + 4}
+          fill="none"
+          stroke={colors.white}
+          strokeOpacity={0.18}
+          strokeWidth={1}
+        />
+      )}
+      <AnimatedCircle
+        cx={cx}
+        cy={cy}
+        r={r}
+        stroke={colors.navy}
+        strokeOpacity={0.6}
+        strokeWidth={1}
+        animatedProps={animatedProps}
+      />
+    </>
   );
 }
 
