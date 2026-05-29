@@ -114,15 +114,16 @@ export default function PalateHeroCard({ packet, isStreaming }) {
       <View style={styles.heroBody}>
         <View style={styles.svgWrap}>
           <Svg width="100%" height="100%" viewBox="0 0 280 200">
-            {/* Rotate the entire dome + sensors 180° around the viewBox center
-                so the curved (posterior/back-of-mouth) edge sits at the bottom
-                and the flat (anterior/teeth) edge sits at the top — matching
-                how the palate reads when looking down into the mouth. */}
-            <G transform="rotate(180 140 100)">
-              {/* Subtle navy backing inside the dome */}
-              <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
+            {/* Dome shell stays in its original orientation (curve up,
+                flat edge along the bottom). Only the sensor array is
+                flipped vertically so the wide trapezoid row reads as the
+                posterior/back-of-mouth row inside the dome. */}
+            <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-              {/* Faint trapezoid connector hinting the palate sensor array */}
+            {/* Flip ONLY the sensors + their trapezoid connector by mirroring
+                Y across the viewBox center (y -> 200 - y). The dome above
+                and outline below stay un-rotated. */}
+            <G transform="matrix(1 0 0 -1 0 200)">
               <Path
                 d={trapezoidPath}
                 fill="none"
@@ -132,7 +133,6 @@ export default function PalateHeroCard({ packet, isStreaming }) {
                 strokeDasharray="3 4"
               />
 
-              {/* 6 FSR sensors: 4 palate trapezoid + 2 molar clench */}
               {SENSOR_POSITIONS.map((pos, index) => (
                 <PalateDot
                   key={`sensor-${index}`}
@@ -143,16 +143,16 @@ export default function PalateHeroCard({ packet, isStreaming }) {
                   kind={pos.kind}
                 />
               ))}
-
-              {/* Outer outline — 1px, very low opacity */}
-              <Path
-                d={DOME_PATH}
-                fill="none"
-                stroke={colors.white}
-                strokeOpacity="0.22"
-                strokeWidth="1"
-              />
             </G>
+
+            {/* Outer outline — 1px, very low opacity */}
+            <Path
+              d={DOME_PATH}
+              fill="none"
+              stroke={colors.white}
+              strokeOpacity="0.22"
+              strokeWidth="1"
+            />
           </Svg>
         </View>
         <ColorScaleLegend />
