@@ -10,7 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -114,39 +114,45 @@ export default function PalateHeroCard({ packet, isStreaming }) {
       <View style={styles.heroBody}>
         <View style={styles.svgWrap}>
           <Svg width="100%" height="100%" viewBox="0 0 280 200">
-            {/* Subtle navy backing inside the dome */}
-            <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
+            {/* Rotate the entire dome + sensors 180° around the viewBox center
+                so the curved (posterior/back-of-mouth) edge sits at the bottom
+                and the flat (anterior/teeth) edge sits at the top — matching
+                how the palate reads when looking down into the mouth. */}
+            <G transform="rotate(180 140 100)">
+              {/* Subtle navy backing inside the dome */}
+              <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* Faint trapezoid connector hinting the palate sensor array */}
-            <Path
-              d={trapezoidPath}
-              fill="none"
-              stroke={colors.white}
-              strokeOpacity="0.08"
-              strokeWidth="1"
-              strokeDasharray="3 4"
-            />
-
-            {/* 6 FSR sensors: 4 palate trapezoid + 2 molar clench */}
-            {SENSOR_POSITIONS.map((pos, index) => (
-              <PalateDot
-                key={`sensor-${index}`}
-                cx={pos.x}
-                cy={pos.y}
-                r={SENSOR_RADIUS}
-                value={sixValues[index]}
-                kind={pos.kind}
+              {/* Faint trapezoid connector hinting the palate sensor array */}
+              <Path
+                d={trapezoidPath}
+                fill="none"
+                stroke={colors.white}
+                strokeOpacity="0.08"
+                strokeWidth="1"
+                strokeDasharray="3 4"
               />
-            ))}
 
-            {/* Outer outline — 1px, very low opacity */}
-            <Path
-              d={DOME_PATH}
-              fill="none"
-              stroke={colors.white}
-              strokeOpacity="0.22"
-              strokeWidth="1"
-            />
+              {/* 6 FSR sensors: 4 palate trapezoid + 2 molar clench */}
+              {SENSOR_POSITIONS.map((pos, index) => (
+                <PalateDot
+                  key={`sensor-${index}`}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={SENSOR_RADIUS}
+                  value={sixValues[index]}
+                  kind={pos.kind}
+                />
+              ))}
+
+              {/* Outer outline — 1px, very low opacity */}
+              <Path
+                d={DOME_PATH}
+                fill="none"
+                stroke={colors.white}
+                strokeOpacity="0.22"
+                strokeWidth="1"
+              />
+            </G>
           </Svg>
         </View>
         <ColorScaleLegend />
