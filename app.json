@@ -21,7 +21,8 @@
       "output": "single"
     },
     "plugins": [
-      "expo-font"
+      "expo-font",
+      "expo-sqlite"
     ],
     "experiments": {
       "baseUrl": "/demo"
