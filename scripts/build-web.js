@@ -38,10 +38,11 @@ try {
 
   fs.rmSync(path.join(projectRoot, outputDir), { recursive: true, force: true });
 
+  const isWindows = process.platform === 'win32';
   const result = spawnSync(
-    process.platform === 'win32' ? 'npx.cmd' : 'npx',
+    isWindows ? 'npx.cmd' : 'npx',
     ['expo', 'export', '--platform', 'web', '--output-dir', outputDir],
-    { cwd: projectRoot, stdio: 'inherit', env: process.env }
+    { cwd: projectRoot, stdio: 'inherit', env: process.env, shell: isWindows }
   );
 
   if (result.error) {
