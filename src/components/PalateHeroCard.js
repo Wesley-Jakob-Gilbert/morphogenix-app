@@ -39,8 +39,8 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
 
-const BACK_Y = 90;
-const FRONT_Y = 145;
+const BACK_Y = 60;
+const FRONT_Y = 115;
 
 const SENSOR_POSITIONS = [
   { x: 110, y: BACK_Y, kind: 'palate' },   // 0: back-left  (trapezoid wide)
