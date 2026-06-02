@@ -39,7 +39,7 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
       <View style={styles.header}>
         <Text style={styles.title}>{takeaway.title}</Text>
         <View style={styles.premiumPill}>
-          <Text style={styles.premiumPillText}>PREMIUM</Text>
+          <Text style={styles.premiumPillText}>PREMIUM FEATURE</Text>
         </View>
       </View>
 
@@ -101,13 +101,11 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-    borderRadius: 16,
+    borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: 'rgba(229, 197, 114, 0.18)',
-    // Subtle inner glow on the gold border to differentiate from regular tiles.
-    // Skip shadow on web/RN — it costs perf and clashes with the surface tone.
+    // Match the metric-tile visual language (same surface, same radius, no border).
+    // Premium signal lives entirely in the gold pill in the header.
   },
   header: {
     flexDirection: 'row',

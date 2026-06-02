@@ -212,7 +212,7 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   grid: {
-    marginTop: spacing.xs,
+    marginTop: spacing.md,
   },
   gridRow: {
     flexDirection: 'row',

@@ -150,7 +150,7 @@ function SensorDot({ x, y, kind, value }) {
     <AnimatedCircle
       cx={x}
       cy={y}
-      r={kind === 'clench' ? 18 : 20}
+      r={kind === 'clench' ? 10 : 11}
       animatedProps={animatedProps}
     />
   );
