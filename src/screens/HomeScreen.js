@@ -10,7 +10,9 @@ import DemoBannerPill from '../components/DemoBannerPill';
 import LiveControlsFloating from '../components/LiveControlsFloating';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
+import TakeawayCard from '../components/TakeawayCard';
 import WearTimeCaption from '../components/WearTimeCaption';
+import demoTakeaway from '../data/demoTakeaway.json';
 import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import useMorphoday from '../hooks/useMorphoday';
 import useSmoothed from '../hooks/useSmoothed';
@@ -96,6 +98,8 @@ export default function HomeScreen({ navigation }) {
         {!videoMode ? <BleDebugConsole /> : null}
         <PalateHeroCard packet={packet} isStreaming={isStreaming} />
         <WearTimeCaption label={wearTime.label} />
+
+        <TakeawayCard takeaway={demoTakeaway} />
 
         <View style={styles.grid}>
           <View style={styles.gridRow}>
