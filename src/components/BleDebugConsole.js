@@ -16,7 +16,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import useIsClient from '../hooks/useIsClient';
-import useLiveBleFlag from '../hooks/useLiveBleFlag';
+import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import { StreamerContext } from '../services/streamer/StreamerProvider';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -34,7 +34,7 @@ function ts() {
 
 export default function BleDebugConsole() {
   const isClient = useIsClient();
-  const liveBle = useLiveBleFlag();
+  const { ble: liveBle, video: videoMode } = useLiveModeFlag();
   const { bleStatus, isBleSupported, source } = useContext(StreamerContext);
   const [lines, setLines] = useState([]);
 
@@ -95,6 +95,7 @@ export default function BleDebugConsole() {
   }, [liveBle]);
 
   if (!isClient) return null;
+  if (videoMode) return null;
   if (!liveBle) return null;
 
   return (

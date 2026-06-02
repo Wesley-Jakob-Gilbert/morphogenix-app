@@ -11,11 +11,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, {
+  Circle,
   ClipPath,
   Defs,
   G,
   Path,
-  Rect,
 } from 'react-native-svg';
 
 import colors from '../theme/colors';
@@ -23,7 +23,7 @@ import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import ColorScaleLegend from './ColorScaleLegend';
 
-const AnimatedRect = Animated.createAnimatedComponent(Rect);
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // Discrete 4x4 grid mirroring the 16 FSR sensors on the device.
 // Cells are clipped to a half-oval dome so the corner cells get cropped naturally.
@@ -32,15 +32,17 @@ const AnimatedRect = Animated.createAnimatedComponent(Rect);
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
 
-const GRID_X = 30;
-const GRID_Y = 25;
-const GRID_W = 220;
-const GRID_H = 160;
-const COLS = 4;
-const ROWS = 4;
-const GAP = 4;
-const CELL_W = (GRID_W - GAP * (COLS + 1)) / COLS;
-const CELL_H = (GRID_H - GAP * (ROWS + 1)) / ROWS;
+const BACK_Y = 118;
+const FRONT_Y = 76;
+const SENSOR_PACKET_INDICES = [1, 2, 9, 10, 4, 7];
+const SENSOR_POSITIONS = [
+  { x: 110, y: BACK_Y, kind: 'palate' }, // 0: back-left  (REAL: Palate_L / adc[2])
+  { x: 170, y: BACK_Y, kind: 'palate' }, // 1: back-right (REAL: Palate_R / adc[3])
+  { x: 120, y: FRONT_Y, kind: 'palate' }, // 2: front-left (FAKE: mirror Palate_L)
+  { x: 160, y: FRONT_Y, kind: 'palate' }, // 3: front-right(FAKE: mirror Palate_R)
+  { x: 55, y: BACK_Y, kind: 'clench' }, // 4: clench-left  (REAL: Molar_L / adc[0])
+  { x: 225, y: BACK_Y, kind: 'clench' }, // 5: clench-right (REAL: Molar_R / adc[1])
+];
 
 export default function PalateHeroCard({ packet, isStreaming }) {
   const palate =
@@ -94,20 +96,16 @@ export default function PalateHeroCard({ packet, isStreaming }) {
             {/* Subtle navy backing inside the dome — shows through the 1px gaps */}
             <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* Discrete 4x4 sensor grid, clipped to the dome */}
+            {/* Six live sensor dots: four real FSRs plus two lagged front-palate mirrors. */}
             <G clipPath="url(#palate-clip)">
-              {palate.map((value, index) => {
-                const col = index % COLS;
-                const row = Math.floor(index / COLS);
-                const x = GRID_X + GAP + col * (CELL_W + GAP);
-                const y = GRID_Y + GAP + row * (CELL_H + GAP);
+              {SENSOR_POSITIONS.map((sensor, index) => {
+                const value = palate[SENSOR_PACKET_INDICES[index]];
                 return (
-                  <PalateCell
-                    key={`cell-${index}`}
-                    x={x}
-                    y={y}
-                    width={CELL_W}
-                    height={CELL_H}
+                  <SensorDot
+                    key={`sensor-${index}`}
+                    x={sensor.x}
+                    y={sensor.y}
+                    kind={sensor.kind}
                     value={value}
                   />
                 );
@@ -130,7 +128,7 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function PalateCell({ x, y, width, height, value }) {
+function SensorDot({ x, y, kind, value }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
@@ -149,13 +147,10 @@ function PalateCell({ x, y, width, height, value }) {
   }));
 
   return (
-    <AnimatedRect
-      x={x}
-      y={y}
-      width={width}
-      height={height}
-      rx={3}
-      ry={3}
+    <AnimatedCircle
+      cx={x}
+      cy={y}
+      r={kind === 'clench' ? 18 : 20}
       animatedProps={animatedProps}
     />
   );

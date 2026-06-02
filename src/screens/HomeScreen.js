@@ -7,9 +7,11 @@ import * as Haptics from 'expo-haptics';
 import BleConnectCard from '../components/BleConnectCard';
 import BleDebugConsole from '../components/BleDebugConsole';
 import DemoBannerPill from '../components/DemoBannerPill';
+import LiveControlsFloating from '../components/LiveControlsFloating';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
 import WearTimeCaption from '../components/WearTimeCaption';
+import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import useMorphoday from '../hooks/useMorphoday';
 import useSmoothed from '../hooks/useSmoothed';
 import useStream from '../hooks/useStream';
@@ -20,6 +22,7 @@ import typography from '../theme/typography';
 
 export default function HomeScreen({ navigation }) {
   const { packet, isStreaming, source } = useStream();
+  const { video: videoMode } = useLiveModeFlag();
   const { aggregate, packets, morphodayWindow, refresh } = useMorphoday(packet);
   const wearTime = useWearTime(packets);
   const [refreshing, setRefreshing] = useState(false);
@@ -84,13 +87,13 @@ export default function HomeScreen({ navigation }) {
           </View>
           <View style={styles.welcomeBlock}>
             <Text style={styles.greeting}>Good morning, Wes</Text>
-            <Text style={styles.source}>Source: {source}</Text>
+            {!videoMode ? <Text style={styles.source}>Source: {source}</Text> : null}
           </View>
         </View>
 
-        <DemoBannerPill />
-        <BleConnectCard />
-        <BleDebugConsole />
+        {!videoMode ? <DemoBannerPill /> : null}
+        {!videoMode ? <BleConnectCard /> : null}
+        {!videoMode ? <BleDebugConsole /> : null}
         <PalateHeroCard packet={packet} isStreaming={isStreaming} />
         <WearTimeCaption label={wearTime.label} />
 
@@ -134,6 +137,7 @@ export default function HomeScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+      {videoMode ? <LiveControlsFloating /> : null}
     </SafeAreaView>
   );
 }

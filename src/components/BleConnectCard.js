@@ -24,7 +24,7 @@ import React, { useContext } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import useIsClient from '../hooks/useIsClient';
-import useLiveBleFlag from '../hooks/useLiveBleFlag';
+import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import { StreamerContext } from '../services/streamer/StreamerProvider';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -39,10 +39,11 @@ export default function BleConnectCard() {
   //   2. useLiveBleFlag() then gates by ?live=ble so production morphogenix.ai
   //      remains visually identical (the card never appears off the bench).
   const isClient = useIsClient();
-  const liveBle = useLiveBleFlag();
+  const { ble: liveBle, video: videoMode } = useLiveModeFlag();
   const { bleStatus, connect, disconnect, isBleSupported, packet } = useContext(StreamerContext);
 
   if (!isClient) return null;
+  if (videoMode) return null;
   if (!liveBle) return null;
 
   const state = bleStatus?.state || 'idle';
@@ -117,8 +118,10 @@ export default function BleConnectCard() {
 
   // When connected, show a tiny live raw value so we know data is flowing.
   const liveRaw =
-    state === 'connected' && packet && typeof packet.palateRaw === 'number'
-      ? packet.palateRaw
+    state === 'connected' && packet && Array.isArray(packet.palateRaw)
+      ? packet.palateRaw.join(', ')
+      : state === 'connected' && packet && typeof packet.palateRaw === 'number'
+        ? packet.palateRaw
       : null;
 
   const dotColor =
