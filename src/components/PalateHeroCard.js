@@ -10,13 +10,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, {
-  Circle,
-  ClipPath,
-  Defs,
-  G,
-  Path,
-} from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -25,30 +19,63 @@ import ColorScaleLegend from './ColorScaleLegend';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// Discrete 4x4 grid mirroring the 16 FSR sensors on the device.
-// Cells are clipped to a half-oval dome so the corner cells get cropped naturally.
+// 6 FSR sensors matching the actual hardware prototype:
+//   - 4 palate sensors arranged in a trapezoid (back pair wider apart than
+//     front pair) sitting inside the half-dome shell.
+//   - 2 clench sensors positioned outside the dome at molar height (same Y
+//     as the back palate row) to detect teeth clenching.
 //
-// viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220), y in [25..185] (H=160).
+// Each sensor is ~fingernail-sized; circles stay small relative to the
+// dome so the shape of the prototype reads clearly.
+//
+// viewBox: 0 0 280 200. Dome bounding box: x in [30..250] (W=220),
+// y in [25..185] (H=160). Dome center x = 140. Top of dome = posterior;
+// bottom of dome (flat edge) = anterior near teeth.
+//
+// Canonical sensor index mapping:
+//   0: palate back-left    1: palate back-right    (trapezoid wide row, y=90)
+//   2: palate front-left   3: palate front-right   (trapezoid narrow row, y=145)
+//   4: molar clench-left   5: molar clench-right   (outside dome, y=90)
 const DOME_PATH =
   'M30 185 C30 95, 80 25, 140 25 C200 25, 250 95, 250 185 L30 185 Z';
 
-const BACK_Y = 118;
-const FRONT_Y = 76;
-const SENSOR_PACKET_INDICES = [1, 2, 9, 10, 4, 7];
+const BACK_Y = 60;
+const FRONT_Y = 115;
+
 const SENSOR_POSITIONS = [
-  { x: 110, y: BACK_Y, kind: 'palate' }, // 0: back-left  (REAL: Palate_L / adc[2])
-  { x: 170, y: BACK_Y, kind: 'palate' }, // 1: back-right (REAL: Palate_R / adc[3])
-  { x: 120, y: FRONT_Y, kind: 'palate' }, // 2: front-left (FAKE: mirror Palate_L)
-  { x: 160, y: FRONT_Y, kind: 'palate' }, // 3: front-right(FAKE: mirror Palate_R)
-  { x: 55, y: BACK_Y, kind: 'clench' }, // 4: clench-left  (REAL: Molar_L / adc[0])
-  { x: 225, y: BACK_Y, kind: 'clench' }, // 5: clench-right (REAL: Molar_R / adc[1])
+  { x: 110, y: BACK_Y, kind: 'palate' },   // 0: back-left  (trapezoid wide)
+  { x: 170, y: BACK_Y, kind: 'palate' },   // 1: back-right (trapezoid wide)
+  { x: 120, y: FRONT_Y, kind: 'palate' },  // 2: front-left  (trapezoid narrow)
+  { x: 160, y: FRONT_Y, kind: 'palate' },  // 3: front-right (trapezoid narrow)
+  { x: 55,  y: BACK_Y, kind: 'clench' },   // 4: molar clench-left
+  { x: 225, y: BACK_Y, kind: 'clench' },   // 5: molar clench-right
 ];
+
+const SENSOR_RADIUS = 11;
 
 export default function PalateHeroCard({ packet, isStreaming }) {
   const palate =
     Array.isArray(packet?.palate) && packet.palate.length === 16
       ? packet.palate
       : fallbackPalate();
+
+  // Pull 6 representative cells from the legacy 16-cell array (4x4 grid).
+  // Palate sensors map to interior cells; molar/clench sensors map to outer
+  // edge cells of the 4x4 (cols 0 and 3) since those approximate molar regions.
+  // Demo data layer stays 16-value; we'll redo natively for BLE later.
+  const sixValues = [
+    palate[1],   // 0: palate back-left   (row 0, col 1)
+    palate[2],   // 1: palate back-right  (row 0, col 2)
+    palate[9],   // 2: palate front-left  (row 2, col 1)
+    palate[10],  // 3: palate front-right (row 2, col 2)
+    palate[4],   // 4: molar clench-left  (row 1, col 0 — outer edge)
+    palate[7],   // 5: molar clench-right (row 1, col 3 — outer edge)
+  ];
+
+  // Connector path that traces the trapezoid through the 4 palate sensors —
+  // a subtle hint that those 4 form a coordinated array.
+  const trapezoidPath = `M${SENSOR_POSITIONS[0].x} ${SENSOR_POSITIONS[0].y} L${SENSOR_POSITIONS[1].x} ${SENSOR_POSITIONS[1].y} L${SENSOR_POSITIONS[3].x} ${SENSOR_POSITIONS[3].y} L${SENSOR_POSITIONS[2].x} ${SENSOR_POSITIONS[2].y} Z`;
+
   const pulse = useSharedValue(0.6);
 
   useEffect(() => {
@@ -87,29 +114,35 @@ export default function PalateHeroCard({ packet, isStreaming }) {
       <View style={styles.heroBody}>
         <View style={styles.svgWrap}>
           <Svg width="100%" height="100%" viewBox="0 0 280 200">
-            <Defs>
-              <ClipPath id="palate-clip">
-                <Path d={DOME_PATH} />
-              </ClipPath>
-            </Defs>
-
-            {/* Subtle navy backing inside the dome — shows through the 1px gaps */}
+            {/* Dome shell stays in its original orientation (curve up,
+                flat edge along the bottom). Only the sensor array is
+                flipped vertically so the wide trapezoid row reads as the
+                posterior/back-of-mouth row inside the dome. */}
             <Path d={DOME_PATH} fill={colors.navy} opacity="0.6" />
 
-            {/* Six live sensor dots: four real FSRs plus two lagged front-palate mirrors. */}
-            <G clipPath="url(#palate-clip)">
-              {SENSOR_POSITIONS.map((sensor, index) => {
-                const value = palate[SENSOR_PACKET_INDICES[index]];
-                return (
-                  <SensorDot
-                    key={`sensor-${index}`}
-                    x={sensor.x}
-                    y={sensor.y}
-                    kind={sensor.kind}
-                    value={value}
-                  />
-                );
-              })}
+            {/* Flip ONLY the sensors + their trapezoid connector by mirroring
+                Y across the viewBox center (y -> 200 - y). The dome above
+                and outline below stay un-rotated. */}
+            <G transform="matrix(1 0 0 -1 0 200)">
+              <Path
+                d={trapezoidPath}
+                fill="none"
+                stroke={colors.white}
+                strokeOpacity="0.08"
+                strokeWidth="1"
+                strokeDasharray="3 4"
+              />
+
+              {SENSOR_POSITIONS.map((pos, index) => (
+                <PalateDot
+                  key={`sensor-${index}`}
+                  cx={pos.x}
+                  cy={pos.y}
+                  r={SENSOR_RADIUS}
+                  value={sixValues[index]}
+                  kind={pos.kind}
+                />
+              ))}
             </G>
 
             {/* Outer outline — 1px, very low opacity */}
@@ -128,7 +161,7 @@ export default function PalateHeroCard({ packet, isStreaming }) {
   );
 }
 
-function SensorDot({ x, y, kind, value }) {
+function PalateDot({ cx, cy, r, value, kind = 'palate' }) {
   const normalized = useSharedValue(normalizePressure(value));
 
   useEffect(() => {
@@ -146,13 +179,31 @@ function SensorDot({ x, y, kind, value }) {
     ),
   }));
 
+  // Clench sensors get a subtle outer ring to visually distinguish them as a
+  // different sensor type (molar pressure) from the palate FSRs.
   return (
-    <AnimatedCircle
-      cx={x}
-      cy={y}
-      r={kind === 'clench' ? 10 : 11}
-      animatedProps={animatedProps}
-    />
+    <>
+      {kind === 'clench' && (
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={r + 4}
+          fill="none"
+          stroke={colors.white}
+          strokeOpacity={0.18}
+          strokeWidth={1}
+        />
+      )}
+      <AnimatedCircle
+        cx={cx}
+        cy={cy}
+        r={r}
+        stroke={colors.navy}
+        strokeOpacity={0.6}
+        strokeWidth={1}
+        animatedProps={animatedProps}
+      />
+    </>
   );
 }
 
@@ -161,6 +212,8 @@ function normalizePressure(newtons) {
   return Math.max(0, Math.min(1, safeValue));
 }
 
+// Legacy 16-value fallback; only 6 indices are read by the new layout.
+// Kept 16-wide so DemoStreamer and other consumers stay untouched.
 function fallbackPalate() {
   return [
     0.58, 0.6, 0.56, 0.62, 0.55, 0.64, 0.52, 0.59, 0.5, 0.57, 0.48, 0.54, 0.46,
