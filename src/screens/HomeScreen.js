@@ -13,6 +13,7 @@ import PalateHeroCard from '../components/PalateHeroCard';
 import TakeawayCard from '../components/TakeawayCard';
 import WearTimeCaption from '../components/WearTimeCaption';
 import demoTakeaway from '../data/demoTakeaway.json';
+import useLiveDemoMetrics from '../hooks/useLiveDemoMetrics';
 import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import useMorphoday from '../hooks/useMorphoday';
 import useSmoothed from '../hooks/useSmoothed';
@@ -26,6 +27,7 @@ export default function HomeScreen({ navigation }) {
   const { packet, isStreaming, source } = useStream();
   const { video: videoMode } = useLiveModeFlag();
   const { aggregate, packets, morphodayWindow, refresh } = useMorphoday(packet);
+  const liveDemo = useLiveDemoMetrics(packet, videoMode);
   const wearTime = useWearTime(packets);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -46,6 +48,17 @@ export default function HomeScreen({ navigation }) {
   const smoothedPressure = useSmoothed(rawPressure, { windowSize: 30, throttleMs: 300 });
 
   const metrics = useMemo(() => {
+    if (videoMode) {
+      // Demo-recording mode: pressure + clench are live-derived from the
+      // 4 real FSRs; posture + nasal are independent random walks. See
+      // useLiveDemoMetrics for the exact math.
+      return {
+        posture: `${liveDemo.posture}/100`,
+        pressure: String(liveDemo.pressureScore),
+        clench: String(liveDemo.clenchCount),
+        nasal: String(liveDemo.nasal),
+      };
+    }
     const postureScore = Math.round((smoothedPosture || 0.87) * 100);
     const pressureValue = smoothedPressure || aggregate.pressureAvg || 0.62;
     const clenchRate = aggregate.clenchEvents > 0 ? aggregate.clenchPerHour : 3;
@@ -57,7 +70,7 @@ export default function HomeScreen({ navigation }) {
       clench: String(Math.round(clenchRate)),
       nasal: String(nasalPercent),
     };
-  }, [smoothedPosture, smoothedPressure, aggregate]);
+  }, [videoMode, liveDemo, smoothedPosture, smoothedPressure, aggregate]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -114,7 +127,7 @@ export default function HomeScreen({ navigation }) {
             <MetricTile
               title="Palatal Pressure"
               value={metrics.pressure}
-              unit="N"
+              unit={videoMode ? '/100' : 'N'}
               accent={colors.amber}
               onPress={() => openAnalytics('pressure')}
               sparkline={[12, 16, 14, 18, 22, 19]}
@@ -124,7 +137,7 @@ export default function HomeScreen({ navigation }) {
             <MetricTile
               title="Clench Events"
               value={metrics.clench}
-              unit="/hr"
+              unit={videoMode ? '' : '/hr'}
               accent={colors.violet}
               onPress={() => openAnalytics('clench')}
               sparkline={[4, 5, 4, 8, 5, 6]}

@@ -52,6 +52,15 @@ const DEVICE_NAME_FILTER = 'MorphoGenixSOD';
 // FSR ADC range on the nRF52840 in 12-bit mode. Used to normalize 0..4095 -> 0..1.
 const ADC_MAX = 4095;
 
+// Visual gain applied AFTER ADC normalization. The firmware sends
+// baseline-subtracted ADC values, so even a firm chew typically only spans
+// ~200..900 of the 4095 full-scale range. Without gain, normalized values
+// stay in [0..0.2] and the hero/heatmap colors barely move. A gain of 5
+// pushes a typical chew up to ~1.0, fully exercising the color scale while
+// hard bites still clamp gracefully at 1.0. Applied uniformly to all 4
+// channels so relative magnitudes are preserved.
+const LIVE_GAIN = 5;
+
 // =========================================================================
 // CHANNEL MAP — MUST match firmware/phase2_palate_4ch_calibrated/phase2_palate_4ch_calibrated.ino
 // =========================================================================
@@ -435,7 +444,9 @@ export default class BleStreamer {
     }
 
     const clampedRaw = rawValues.map((value) => clamp(value, 0, ADC_MAX));
-    const [molarL, molarR, palateL, palateR] = clampedRaw.map((value) => value / ADC_MAX);
+    const [molarL, molarR, palateL, palateR] = clampedRaw.map((value) =>
+      clamp((value / ADC_MAX) * LIVE_GAIN, 0, 1)
+    );
 
     // First-packet diagnostic: log the first successful parse so the user
     // sees positive confirmation that data is flowing through the pipeline.
@@ -564,6 +575,7 @@ export {
   NUS_RX_CHAR_UUID,
   DEVICE_NAME_FILTER,
   ADC_MAX,
+  LIVE_GAIN,
   PALATE_ZONE_COUNT,
   AMBIENT_FLOOR,
   MIRROR_LAG_MS,
