@@ -2,8 +2,6 @@ import React, { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Easing,
-  interpolateColor,
-  useAnimatedProps,
   useAnimatedStyle,
   useSharedValue,
   withRepeat,
@@ -16,8 +14,6 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import ColorScaleLegend from './ColorScaleLegend';
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // 6 FSR sensors matching the actual hardware prototype:
 //   - 4 palate sensors arranged in a trapezoid (back pair wider apart than
@@ -162,22 +158,15 @@ export default function PalateHeroCard({ packet, isStreaming }) {
 }
 
 function PalateDot({ cx, cy, r, value, kind = 'palate' }) {
-  const normalized = useSharedValue(normalizePressure(value));
-
-  useEffect(() => {
-    normalized.value = withTiming(normalizePressure(value), {
-      duration: 300,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [value, normalized]);
-
-  const animatedProps = useAnimatedProps(() => ({
-    fill: interpolateColor(
-      normalized.value,
-      [0, 0.5, 1],
-      [colors.teal, colors.amber, colors.violet]
-    ),
-  }));
+  // Use plain React state for `fill` instead of Reanimated's useAnimatedProps.
+  // Reanimated's SVG-attribute animations work great on native but are
+  // unreliable on web (the `fill` interpolation can silently no-op when
+  // the value passes through React-Native-Web's SVG shim). Using a plain
+  // React-rendered color guarantees the circles repaint on every packet on
+  // both web and native. We lose the smooth 300ms color interpolation but
+  // the 10Hz packet rate is already visually fluid.
+  const normalized = normalizePressure(value);
+  const fillColor = pressureToColor(normalized);
 
   // Clench sensors get a subtle outer ring to visually distinguish them as a
   // different sensor type (molar pressure) from the palate FSRs.
@@ -194,14 +183,14 @@ function PalateDot({ cx, cy, r, value, kind = 'palate' }) {
           strokeWidth={1}
         />
       )}
-      <AnimatedCircle
+      <Circle
         cx={cx}
         cy={cy}
         r={r}
         stroke={colors.navy}
         strokeOpacity={0.6}
         strokeWidth={1}
-        animatedProps={animatedProps}
+        fill={fillColor}
       />
     </>
   );
@@ -210,6 +199,39 @@ function PalateDot({ cx, cy, r, value, kind = 'palate' }) {
 function normalizePressure(newtons) {
   const safeValue = typeof newtons === 'number' ? newtons : 0.55;
   return Math.max(0, Math.min(1, safeValue));
+}
+
+// Three-stop linear color ramp: teal (low) -> amber (mid) -> violet (high).
+// Manual hex interpolation avoids depending on Reanimated's interpolateColor,
+// which is the source of the web rendering bug we hit above.
+function pressureToColor(t) {
+  const teal = hexToRgb(colors.teal);
+  const amber = hexToRgb(colors.amber);
+  const violet = hexToRgb(colors.violet);
+  let rgb;
+  if (t <= 0.5) {
+    rgb = lerpRgb(teal, amber, t * 2);
+  } else {
+    rgb = lerpRgb(amber, violet, (t - 0.5) * 2);
+  }
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+}
+
+function hexToRgb(hex) {
+  const clean = hex.replace('#', '');
+  return [
+    parseInt(clean.slice(0, 2), 16),
+    parseInt(clean.slice(2, 4), 16),
+    parseInt(clean.slice(4, 6), 16),
+  ];
+}
+
+function lerpRgb(a, b, t) {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * t),
+    Math.round(a[1] + (b[1] - a[1]) * t),
+    Math.round(a[2] + (b[2] - a[2]) * t),
+  ];
 }
 
 // Legacy 16-value fallback; only 6 indices are read by the new layout.

@@ -38,6 +38,14 @@ const CLENCH_RISE_THRESHOLD = 80;
 const CLENCH_FALL_THRESHOLD = 60;
 const RANDOM_WALK_INTERVAL_MS = 2000;
 
+// Rolling window for the displayed pressure score. At ~10 Hz packet rate,
+// 25 samples ~= 2.5s of smoothing. Big enough that the tile stops jittering
+// between every packet, small enough that a real chew shows up within a beat.
+// Clench detection still uses the RAW per-packet score (not smoothed) so a
+// quick hard bite still registers as an event without being averaged out.
+const PRESSURE_SMOOTH_WINDOW = 25;
+const PRESSURE_EMIT_THROTTLE_MS = 250;
+
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
@@ -56,6 +64,10 @@ export default function useLiveDemoMetrics(packet, enabled = true) {
   // Track whether we're "armed" for the next rising-edge clench detection.
   // We arm on first mount and after the signal falls below CLENCH_FALL_THRESHOLD.
   const armedRef = useRef(true);
+
+  // Rolling buffer + throttle for the displayed pressure value.
+  const bufferRef = useRef([]);
+  const lastEmitRef = useRef(0);
 
   // Random walks for posture + nasal. Independent of packet rate so they
   // animate even when the device is idle.
@@ -80,15 +92,29 @@ export default function useLiveDemoMetrics(packet, enabled = true) {
     if (validSlots.length === 0) return;
 
     const meanNormalized = validSlots.reduce((sum, value) => sum + value, 0) / validSlots.length;
-    const score = clamp(Math.round(PRESSURE_GAIN * meanNormalized * 100), 0, 100);
-    setPressureScore(score);
+    const rawScore = clamp(Math.round(PRESSURE_GAIN * meanNormalized * 100), 0, 100);
 
-    // Edge-triggered counter with hysteresis.
-    if (armedRef.current && score >= CLENCH_RISE_THRESHOLD) {
+    // Edge-triggered clench counter uses the RAW per-packet score so quick
+    // bites still register without being averaged out.
+    if (armedRef.current && rawScore >= CLENCH_RISE_THRESHOLD) {
       armedRef.current = false;
       setClenchCount((prev) => prev + 1);
-    } else if (!armedRef.current && score <= CLENCH_FALL_THRESHOLD) {
+    } else if (!armedRef.current && rawScore <= CLENCH_FALL_THRESHOLD) {
       armedRef.current = true;
+    }
+
+    // Smooth the displayed pressure with a rolling window + throttle so the
+    // tile reads as a stable number instead of flickering every 100ms.
+    const buffer = bufferRef.current;
+    buffer.push(rawScore);
+    if (buffer.length > PRESSURE_SMOOTH_WINDOW) {
+      buffer.splice(0, buffer.length - PRESSURE_SMOOTH_WINDOW);
+    }
+    const now = Date.now();
+    if (now - lastEmitRef.current >= PRESSURE_EMIT_THROTTLE_MS) {
+      lastEmitRef.current = now;
+      const avg = buffer.reduce((sum, value) => sum + value, 0) / buffer.length;
+      setPressureScore(Math.round(avg));
     }
   }, [packet, enabled]);
 
