@@ -1,0 +1,33 @@
+# Git LFS tracking for binary hardware assets
+# Run `git lfs install` once per machine, then `git lfs pull` after cloning.
+
+# Blender source files
+*.blend   filter=lfs diff=lfs merge=lfs -text
+*.blend1  filter=lfs diff=lfs merge=lfs -text
+
+# Mesh exchange formats (scans, prints, intermediates)
+*.stl     filter=lfs diff=lfs merge=lfs -text
+*.obj     filter=lfs diff=lfs merge=lfs -text
+*.ply     filter=lfs diff=lfs merge=lfs -text
+*.3mf     filter=lfs diff=lfs merge=lfs -text
+*.fbx     filter=lfs diff=lfs merge=lfs -text
+*.gltf    filter=lfs diff=lfs merge=lfs -text
+*.glb     filter=lfs diff=lfs merge=lfs -text
+
+# Parametric CAD exchange formats (future-proofing for Fusion 360 / SolidWorks interop)
+*.f3d     filter=lfs diff=lfs merge=lfs -text
+*.step    filter=lfs diff=lfs merge=lfs -text
+*.stp     filter=lfs diff=lfs merge=lfs -text
+*.iges    filter=lfs diff=lfs merge=lfs -text
+*.igs     filter=lfs diff=lfs merge=lfs -text
+
+# Slicer project files
+*.chitubox filter=lfs diff=lfs merge=lfs -text
+*.lys      filter=lfs diff=lfs merge=lfs -text
+*.gcode    filter=lfs diff=lfs merge=lfs -text
+
+# Source photos for photogrammetry (raw scan input -- many files, large)
+hardware/scans/**/raw/*.jpg  filter=lfs diff=lfs merge=lfs -text
+hardware/scans/**/raw/*.jpeg filter=lfs diff=lfs merge=lfs -text
+hardware/scans/**/raw/*.png  filter=lfs diff=lfs merge=lfs -text
+hardware/scans/**/raw/*.heic filter=lfs diff=lfs merge=lfs -text
