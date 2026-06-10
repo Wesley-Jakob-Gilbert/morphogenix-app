@@ -13,6 +13,7 @@ export const StreamerContext = createContext({
   bleStatus: { state: 'idle', detail: null }, // 'idle' | 'scanning' | 'connecting' | 'connected' | 'silent' | 'error' | 'disconnected'
   connect: async () => {},
   disconnect: () => {},
+  sendCommand: async () => {},
   isBleSupported: false,
   subscribe: () => () => {},
 });
@@ -94,6 +95,12 @@ export default function StreamerProvider({ children }) {
     streamer.disconnect();
   }, []);
 
+  const sendCommand = useCallback(async (command) => {
+    const streamer = streamerRef.current;
+    if (!streamer || typeof streamer.sendCommand !== 'function') return;
+    await streamer.sendCommand(command);
+  }, []);
+
   // Hydration-safe Web Bluetooth capability check.
   // Server prerender has no `navigator` global, so referencing it during
   // render would throw and tear down the tree. We start at `false` (matches
@@ -112,13 +119,14 @@ export default function StreamerProvider({ children }) {
       bleStatus,
       connect,
       disconnect,
+      sendCommand,
       isBleSupported,
       subscribe: (callback) => {
         if (!streamerRef.current) return () => {};
         return streamerRef.current.subscribe(callback);
       },
     }),
-    [packet, isStreaming, source, bleStatus, connect, disconnect, isBleSupported]
+    [packet, isStreaming, source, bleStatus, connect, disconnect, sendCommand, isBleSupported]
   );
 
   return <StreamerContext.Provider value={value}>{children}</StreamerContext.Provider>;

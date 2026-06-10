@@ -4,18 +4,18 @@
  * Talks to the XIAO nRF52840 firmware running the Nordic UART Service (NUS).
  * Firmware sends one ASCII line every ~100 ms over the NUS TX characteristic:
  *
- *     "<millis>,<adcValue>\n"
+ *     "<millis>,<molar_L>,<molar_R>,<palate_L>,<palate_R>\n"
  *
- * where adcValue is a 12-bit reading (0..4095) from the palate FSR.
+ * where each ADC value is a 12-bit reading (0..4095), baseline-subtracted
+ * and clamped by the firmware.
  *
  * Phase 2 mapping:
- *   - We receive ONE channel (palate_L). The IStreamer contract expects a
- *     16-element palate[] array of normalized 0..1 values. To keep the rest
- *     of the app (PalateHeroCard, MetricTile averaging, etc.) working with
- *     zero changes, we splat the same normalized value across all 16 zones.
- *   - We additionally attach `palateRaw` and `palateAdc` so the Home screen
- *     can show the raw 12-bit number alongside the normalized average — useful
- *     for bench calibration.
+ *   - Firmware sends four real channels in this order: Molar_L, Molar_R,
+ *     Palate_L, Palate_R.
+ *   - The hero visual expects six visible sensor positions in a 16-zone
+ *     packet.palate[] array. We place the four real values into their
+ *     contracted zones and synthesize two front palate values by mirroring the
+ *     back palate readings with a ~150 ms lag and ±10% jitter.
  *
  * Why Web Bluetooth (not react-native-ble-plx) for this file:
  *   This streamer is loaded only on the web bench build (Chrome/Edge desktop,
@@ -44,7 +44,7 @@
 // the bluefruit Arduino library uses Nordic's standard UUIDs).
 const NUS_SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
 const NUS_TX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e'; // device -> phone (notify)
-// const NUS_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // phone -> device (write); unused in Phase 2
+const NUS_RX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e'; // phone -> device (write)
 
 // Firmware advertises this name; we filter the device picker by it.
 const DEVICE_NAME_FILTER = 'MorphoGenixSOD';
@@ -52,39 +52,47 @@ const DEVICE_NAME_FILTER = 'MorphoGenixSOD';
 // FSR ADC range on the nRF52840 in 12-bit mode. Used to normalize 0..4095 -> 0..1.
 const ADC_MAX = 4095;
 
+// Visual gain applied AFTER ADC normalization. The firmware sends
+// baseline-subtracted ADC values, so even a firm chew typically only spans
+// ~200..900 of the 4095 full-scale range. Without gain, normalized values
+// stay in [0..0.2] and the hero/heatmap colors barely move. A gain of 5
+// pushes a typical chew up to ~1.0, fully exercising the color scale while
+// hard bites still clamp gracefully at 1.0. Applied uniformly to all 4
+// channels so relative magnitudes are preserved.
+const LIVE_GAIN = 5;
+
 // =========================================================================
-// CHANNEL MAP — MUST match firmware/phase2_palate_1ch/phase2_palate_1ch.ino
+// CHANNEL MAP — MUST match firmware/phase2_palate_4ch_calibrated/phase2_palate_4ch_calibrated.ino
 // =========================================================================
 //
 // The firmware sends ASCII lines of the form:
-//     "<millisSinceBoot>,<adc[0]>[,<adc[1]>,<adc[2]>...]\n"
+//     "<millisSinceBoot>,<adc[0]>,<adc[1]>,<adc[2]>,<adc[3]>\n"
 //
-// Wire index | Logical channel    | Anatomical region        | XIAO pin
-// -----------+--------------------+--------------------------+---------
-//   adc[0]   | FSR_PALATE_CENTER  | Hard palate, midline     | A0
-//
-// Future channels (reserved positions — firmware will append in this order):
-//   adc[1]   | FSR_PALATE_LEFT    | Hard palate, left side   | A1
-//   adc[2]   | FSR_PALATE_RIGHT   | Hard palate, right side  | A2
+// Wire index | Logical channel | Anatomical region        | XIAO pin
+// -----------+-----------------+--------------------------+---------
+//   adc[0]   | Molar_L         | Left molar / clench      | A0
+//   adc[1]   | Molar_R         | Right molar / clench     | A1
+//   adc[2]   | Palate_L        | Back palate, left side   | A2
+//   adc[3]   | Palate_R        | Back palate, right side  | A3
 //
 // IMPORTANT: This order is a CONTRACT with the firmware. If you reorder the
-// physical wiring, update BOTH this comment AND the matching CHANNEL MAP at
-// the top of phase2_palate_1ch.ino in the SAME commit. Otherwise the bench
-// will silently render the wrong zones, which is the single hardest class
-// of multi-channel bug to track down.
-//
-// Logical channel names — use these in code, never the bare index. When we
-// add channels 1 and 2, the parser will read them as CHANNEL_MAP[i].
+// physical wiring, update BOTH this comment AND the matching CHANNEL MAP in
+// the firmware in the SAME commit.
 export const CHANNEL_MAP = Object.freeze([
-  { name: 'FSR_PALATE_CENTER', region: 'palate.center', pin: 'A0' },
-  // { name: 'FSR_PALATE_LEFT',   region: 'palate.left',   pin: 'A1' },
-  // { name: 'FSR_PALATE_RIGHT',  region: 'palate.right',  pin: 'A2' },
+  { name: 'Molar_L', region: 'clench.left', pin: 'A0' },
+  { name: 'Molar_R', region: 'clench.right', pin: 'A1' },
+  { name: 'Palate_L', region: 'palate.back.left', pin: 'A2' },
+  { name: 'Palate_R', region: 'palate.back.right', pin: 'A3' },
 ]);
 // =========================================================================
 
-// How many zones the rest of the app expects in packet.palate. Phase 2 uses 1 FSR
-// but the UI averages across the array, so splatting works perfectly.
 const PALATE_ZONE_COUNT = 16;
+const AMBIENT_FLOOR = 0.05;
+const MIRROR_LAG_MS = 150;
+const MIRROR_BUFFER_MS = 200;
+const CLENCH_ON_THRESHOLD = 0.6;
+const CLENCH_OFF_THRESHOLD = 0.4;
+const CLENCH_HOLD_MS = 100;
 
 // Watchdog: if no notifications arrive for this many ms after connect, surface
 // a warning. Firmware should send 10 packets/sec, so >1.5s of silence is bad.
@@ -141,6 +149,14 @@ function debugLog(msg) {
   if (typeof console !== 'undefined' && console.log) console.log('[BLE]', msg);
 }
 
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function jitterClamp(value) {
+  return clamp(value * (1 + (Math.random() - 0.5) * 0.2), 0, 1);
+}
+
 export default class BleStreamer {
   constructor({ deviceNameFilter = DEVICE_NAME_FILTER } = {}) {
     this.deviceNameFilter = deviceNameFilter;
@@ -151,6 +167,7 @@ export default class BleStreamer {
     this.device = null;
     this.server = null;
     this.txCharacteristic = null;
+    this.rxCharacteristic = null;
 
     // For ASCII-line reassembly across notifications. Notifications are
     // 20-byte chunks by default and a "<ms>,<adc>\n" line is usually <16
@@ -160,6 +177,11 @@ export default class BleStreamer {
 
     // Watchdog timer for "connected but silent" states.
     this.watchdogTimer = null;
+
+    // State for four-channel packet post-processing.
+    this.palateMirrorBuffer = [];
+    this.clenchAboveSince = null;
+    this.clenchArmed = true;
 
     // Bound handlers so we can remove them on disconnect.
     this.handleDisconnect = this.handleDisconnect.bind(this);
@@ -267,6 +289,8 @@ export default class BleStreamer {
       debugLog('NUS service acquired');
       this.txCharacteristic = await service.getCharacteristic(NUS_TX_CHAR_UUID);
       debugLog('TX characteristic acquired');
+      this.rxCharacteristic = await service.getCharacteristic(NUS_RX_CHAR_UUID);
+      debugLog('RX characteristic acquired');
 
       await this.txCharacteristic.startNotifications();
       this.txCharacteristic.addEventListener(
@@ -306,6 +330,8 @@ export default class BleStreamer {
       this.txCharacteristic = null;
     }
 
+    this.rxCharacteristic = null;
+
     if (this.device) {
       try {
         this.device.removeEventListener('gattserverdisconnected', this.handleDisconnect);
@@ -320,6 +346,9 @@ export default class BleStreamer {
     this.server = null;
     this.device = null;
     this.lineBuffer = '';
+    this.palateMirrorBuffer = [];
+    this.clenchAboveSince = null;
+    this.clenchArmed = true;
 
     // Reset the one-shot diagnostic flags so the next connect attempt logs
     // first-chunk / first-packet / parse-fail again.
@@ -328,6 +357,23 @@ export default class BleStreamer {
     this.loggedParseFail = false;
 
     this.emitStatus('idle', null);
+  }
+
+  async sendCommand(char) {
+    if (char !== 'z' && char !== 'r') {
+      throw new Error(`Unsupported BLE command: ${char}`);
+    }
+    if (!this.rxCharacteristic) {
+      throw new Error('Cannot send BLE command before RX characteristic is connected.');
+    }
+
+    const payload = new Uint8Array([char.charCodeAt(0)]);
+    if (typeof this.rxCharacteristic.writeValueWithoutResponse === 'function') {
+      await this.rxCharacteristic.writeValueWithoutResponse(payload);
+    } else {
+      await this.rxCharacteristic.writeValue(payload);
+    }
+    debugLog(`sent command "${char}"`);
   }
 
   // -------- Internal handlers --------
@@ -376,54 +422,119 @@ export default class BleStreamer {
   }
 
   emitPacketFromLine(line) {
-    // Expected format: "<millisSinceBoot>,<adcValue>"
+    // Expected format: "<millisSinceBoot>,<molar_L>,<molar_R>,<palate_L>,<palate_R>"
     // Tolerant parsing: skip lines that don't match.
     const parts = line.split(',');
-    if (parts.length < 2) {
+    if (parts.length < 5) {
       if (!this.loggedParseFail) {
         this.loggedParseFail = true;
-        debugLog(`parse FAIL (no comma) line="${line.slice(0, 60)}"`);
+        debugLog(`parse FAIL (expected 5 fields) line="${line.slice(0, 60)}"`);
       }
       return;
     }
 
-    const adcValue = Number.parseInt(parts[1], 10);
-    if (!Number.isFinite(adcValue)) {
+    const firmwareMs = Number.parseInt(parts[0], 10);
+    const rawValues = parts.slice(1, 5).map((part) => Number.parseInt(part, 10));
+    if (!Number.isFinite(firmwareMs) || rawValues.some((value) => !Number.isFinite(value))) {
       if (!this.loggedParseFail) {
         this.loggedParseFail = true;
-        debugLog(`parse FAIL (non-numeric adc) line="${line.slice(0, 60)}"`);
+        debugLog(`parse FAIL (non-numeric field) line="${line.slice(0, 60)}"`);
       }
       return;
     }
+
+    const clampedRaw = rawValues.map((value) => clamp(value, 0, ADC_MAX));
+    const [molarL, molarR, palateL, palateR] = clampedRaw.map((value) =>
+      clamp((value / ADC_MAX) * LIVE_GAIN, 0, 1)
+    );
 
     // First-packet diagnostic: log the first successful parse so the user
     // sees positive confirmation that data is flowing through the pipeline.
     if (!this.loggedFirstPacket) {
       this.loggedFirstPacket = true;
-      debugLog(`first packet OK  adc=${adcValue}  norm=${(adcValue / ADC_MAX).toFixed(3)}`);
+      debugLog(
+        `first packet OK  adc=[${clampedRaw.join(',')}]  norm=[${[molarL, molarR, palateL, palateR]
+          .map((value) => value.toFixed(3))
+          .join(',')}]`
+      );
     }
 
-    // Clamp to the 12-bit range so an out-of-spec firmware can't push the
-    // UI into ugly states.
-    const clampedAdc = Math.max(0, Math.min(ADC_MAX, adcValue));
-    const normalized = clampedAdc / ADC_MAX;
+    const { frontL, frontR } = this.computeLaggedMirrors(firmwareMs, palateL, palateR);
+    const clenchEvent = this.updateClenchState(firmwareMs, molarL, molarR);
 
     // Build a packet that matches the existing IStreamer contract, plus a
     // couple of bench-only fields the Home screen can opt into.
-    const palateZones = new Array(PALATE_ZONE_COUNT).fill(normalized);
+    const palateZones = new Array(PALATE_ZONE_COUNT).fill(AMBIENT_FLOOR);
+    palateZones[1] = palateL; // back-left (Palate_L / adc[2])
+    palateZones[2] = palateR; // back-right (Palate_R / adc[3])
+    palateZones[9] = frontL; // front-left fake mirror
+    palateZones[10] = frontR; // front-right fake mirror
+    palateZones[4] = molarL; // clench-left (Molar_L / adc[0])
+    palateZones[7] = molarR; // clench-right (Molar_R / adc[1])
+
+    const realMean = (molarL + molarR + palateL + palateR) / 4;
     const packet = {
       t: Date.now(),
       posture: 0, // unused in Phase 2
       palate: palateZones,
-      clenchEvent: false,
+      clenchEvent,
       nasal: false,
       // Bench-only extras (ignored by code that only reads the contract):
-      palateRaw: clampedAdc, // 0..4095 for the "raw: 2847" callout
-      palateNormalized: normalized, // 0..1 for direct gauge use
+      palateRaw: clampedRaw, // 4-tuple in firmware order: Molar_L, Molar_R, Palate_L, Palate_R
+      palateNormalized: realMean, // mean of the four real normalized channels
       source: 'ble-web',
     };
 
     this.subscribers.forEach((cb) => cb(packet));
+  }
+
+  computeLaggedMirrors(t, p_l, p_r) {
+    this.palateMirrorBuffer.push({ t, p_l, p_r });
+    this.palateMirrorBuffer = this.palateMirrorBuffer.filter((sample) => t - sample.t <= MIRROR_BUFFER_MS);
+
+    const targetT = t - MIRROR_LAG_MS;
+    let lagged = null;
+    for (let i = this.palateMirrorBuffer.length - 1; i >= 0; i -= 1) {
+      if (this.palateMirrorBuffer[i].t <= targetT) {
+        lagged = this.palateMirrorBuffer[i];
+        break;
+      }
+    }
+
+    const sourceL = lagged ? lagged.p_l : p_l;
+    const sourceR = lagged ? lagged.p_r : p_r;
+    return {
+      frontL: jitterClamp(sourceL),
+      frontR: jitterClamp(sourceR),
+    };
+  }
+
+  updateClenchState(t, molarL, molarR) {
+    const bothHigh = molarL > CLENCH_ON_THRESHOLD && molarR > CLENCH_ON_THRESHOLD;
+    const bothLow = molarL < CLENCH_OFF_THRESHOLD && molarR < CLENCH_OFF_THRESHOLD;
+
+    if (bothLow) {
+      this.clenchAboveSince = null;
+      this.clenchArmed = true;
+      return false;
+    }
+
+    if (!bothHigh) {
+      this.clenchAboveSince = null;
+      return false;
+    }
+
+    if (this.clenchAboveSince == null) {
+      this.clenchAboveSince = t;
+      return false;
+    }
+
+    if (this.clenchArmed && t - this.clenchAboveSince >= CLENCH_HOLD_MS) {
+      this.clenchArmed = false;
+      return true;
+    }
+
+    return false;
   }
 
   emitStatus(state, detail) {
@@ -461,7 +572,13 @@ export function isWebBluetoothAvailable() {
 export {
   NUS_SERVICE_UUID,
   NUS_TX_CHAR_UUID,
+  NUS_RX_CHAR_UUID,
   DEVICE_NAME_FILTER,
   ADC_MAX,
+  LIVE_GAIN,
   PALATE_ZONE_COUNT,
+  AMBIENT_FLOOR,
+  MIRROR_LAG_MS,
+  MIRROR_BUFFER_MS,
+  CLENCH_HOLD_MS,
 };

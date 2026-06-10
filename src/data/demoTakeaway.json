@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-06-02T08:14:00-06:00",
+  "morphoday": "2026-06-01",
+  "model": "sonar",
+  "promptVersion": "v1.0",
+  "input": {
+    "wear_time_hours": 8.4,
+    "sleep_coverage_hours": 6.1,
+    "posture_score": 67,
+    "avg_palate_pressure_N": 0.62,
+    "peak_palate_pressure_N": 1.84,
+    "clench_events_per_hour": 4.2,
+    "nasal_breathing_pct": 71,
+    "sleep_position_minutes": {
+      "supine": 142,
+      "left_side": 178,
+      "right_side": 41,
+      "prone": 0
+    },
+    "snore_minutes": 22,
+    "user_goals": { "posture_score_target": 80 }
+  },
+  "title": "Tonight: side-sleep for fewer snore minutes",
+  "body": "You spent 39% of last night on your back and snored for 22 minutes, almost all of it while supine. Sleeping supine consistently produces more severe airway obstruction than lateral positions, because gravity pulls the tongue and soft palate toward the posterior airway. Try a side-sleeping cue tonight — a small pillow wedged behind your back, or a tennis ball sewn into the back of a t-shirt — and see if your snore minutes drop below ten.",
+  "citation": {
+    "label": "Menon & Kumar, 2013 \u2014 Influence of Body Position on Severity of OSA (systematic review)",
+    "short": "Menon & Kumar, 2013",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC3817704/",
+    "doi": "10.1155/2013/670381"
+  },
+  "supportingCitation": {
+    "label": "Strohm et al., 2024 \u2014 Sleep position, obesity, and OSA severity",
+    "short": "Strohm et al., 2024",
+    "url": "https://www.mdpi.com/2075-4426/14/11/1087",
+    "doi": "10.3390/jpm14111087"
+  },
+  "disclaimer": "MorphoGenix takeaways are educational, not medical advice. If your snoring is loud, frequent, or accompanied by daytime sleepiness, talk to a sleep physician."
+}
