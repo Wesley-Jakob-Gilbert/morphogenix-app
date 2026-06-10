@@ -100,24 +100,33 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.surface,
+    // Match the metric-tile elevated depth language (lifted surface, hairline
+    // inner border, soft shadow). Premium signal still lives entirely in the
+    // gold pill in the header.
+    backgroundColor: colors.surfaceElevated,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
-    // Match the metric-tile visual language (same surface, same radius, no border).
-    // Premium signal lives entirely in the gold pill in the header.
+    borderWidth: 1,
+    borderColor: colors.ink,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 6,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   title: {
     color: colors.white,
     fontSize: typography.sizes.callout,
-    fontWeight: typography.weights.bold,
+    fontWeight: typography.weights.display,
     lineHeight: typography.lineHeights.callout,
+    letterSpacing: -0.2,
     flexShrink: 1,
     paddingRight: spacing.sm,
   },
@@ -145,7 +154,7 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: typography.sizes.caption,
     lineHeight: typography.lineHeights.caption,
-    marginTop: spacing.xs,
+    marginTop: spacing.sm,
   },
   citationDot: {
     color: colors.teal,
@@ -170,7 +179,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: spacing.md,
+    marginTop: spacing.lg,
+    paddingTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.inkSoft,
   },
   footerMeta: {
     color: colors.muted,

@@ -10,6 +10,7 @@ import DemoBannerPill from '../components/DemoBannerPill';
 import LiveControlsFloating from '../components/LiveControlsFloating';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
+import ScoreRing from '../components/ScoreRing';
 import TakeawayCard from '../components/TakeawayCard';
 import WearTimeCaption from '../components/WearTimeCaption';
 import demoTakeaway from '../data/demoTakeaway.json';
@@ -101,8 +102,17 @@ export default function HomeScreen({ navigation }) {
             </View>
           </View>
           <View style={styles.welcomeBlock}>
-            <Text style={styles.greeting}>Good morning, Wes</Text>
-            {!videoMode ? <Text style={styles.source}>Source: {source}</Text> : null}
+            <View style={styles.welcomeCopy}>
+              <Text style={styles.greeting}>Good morning, Wes</Text>
+              {!videoMode ? <Text style={styles.source}>Source: {source}</Text> : null}
+            </View>
+            <ScoreRing
+              value={metrics.posture}
+              max={100}
+              label="Posture"
+              size={104}
+              strokeWidth={9}
+            />
           </View>
         </View>
 
@@ -211,6 +221,13 @@ const styles = StyleSheet.create({
   },
   welcomeBlock: {
     marginTop: spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  welcomeCopy: {
+    flex: 1,
+    paddingRight: spacing.lg,
   },
   greeting: {
     color: colors.white,

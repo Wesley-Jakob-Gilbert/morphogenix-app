@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Polyline } from 'react-native-svg';
+import Svg, { Defs, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -14,6 +14,21 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
       onPress={onPress}
       style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
+      {/* Faint radial sheen tinted by the tile accent — gives the flat surface
+          a subtle Oura-style depth without changing the locked palette. Sits
+          behind the content and ignores touches. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <Svg width="100%" height="100%">
+          <Defs>
+            <RadialGradient id={`sheen-${title}`} cx="18%" cy="0%" r="90%">
+              <Stop offset="0" stopColor={accent} stopOpacity="0.10" />
+              <Stop offset="1" stopColor={accent} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#sheen-${title})`} />
+        </Svg>
+      </View>
+
       <View style={styles.topRow}>
         <Text style={styles.title}>{title}</Text>
         <View style={[styles.accentDot, { backgroundColor: accent }]} />
@@ -53,9 +68,22 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 126,
     borderRadius: 22,
-    backgroundColor: colors.surface,
+    // Lifted, elevated surface (lighter than the app floor) per layered
+    // dark-mode depth guidance.
+    backgroundColor: colors.surfaceElevated,
     padding: spacing.lg,
     justifyContent: 'space-between',
+    overflow: 'hidden',
+    // Subtle inner hairline border so the card edge reads on a dark base.
+    borderWidth: 1,
+    borderColor: colors.ink,
+    // Soft multi-layer elevation (native). On web the radial sheen + border
+    // carry the depth, so a flat shadow here is harmless.
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 6,
   },
   pressed: {
     opacity: 0.78,
@@ -83,9 +111,10 @@ const styles = StyleSheet.create({
   },
   value: {
     color: colors.white,
-    fontSize: 27,
+    fontSize: 28,
     lineHeight: 32,
-    fontWeight: typography.weights.bold,
+    fontWeight: typography.weights.display,
+    letterSpacing: -0.5,
   },
   unit: {
     color: colors.muted,
