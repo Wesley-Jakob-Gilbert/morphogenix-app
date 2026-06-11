@@ -186,30 +186,31 @@ volatile bool imuDiagRequested = false;
 bool imuReady = false;
 
 #if !IMU_LIB_AVAILABLE
-// ---- Direct-I2C fallback: minimal raw register access via Wire ----
+// ---- Direct-I2C fallback: minimal raw register access via Wire1 ----
+// IMU lives on Wire1 (internal bus) on the XIAO nRF52840 Sense.
 static void i2cWriteReg(uint8_t reg, uint8_t val) {
-  Wire.beginTransmission(LSM6DS3_ADDR);
-  Wire.write(reg);
-  Wire.write(val);
-  Wire.endTransmission();
+  Wire1.beginTransmission(LSM6DS3_ADDR);
+  Wire1.write(reg);
+  Wire1.write(val);
+  Wire1.endTransmission();
 }
 
 static uint8_t i2cReadReg(uint8_t reg) {
-  Wire.beginTransmission(LSM6DS3_ADDR);
-  Wire.write(reg);
-  Wire.endTransmission(false);          // repeated start
-  Wire.requestFrom((int)LSM6DS3_ADDR, 1);
-  return Wire.available() ? Wire.read() : 0;
+  Wire1.beginTransmission(LSM6DS3_ADDR);
+  Wire1.write(reg);
+  Wire1.endTransmission(false);         // repeated start
+  Wire1.requestFrom((int)LSM6DS3_ADDR, 1);
+  return Wire1.available() ? Wire1.read() : 0;
 }
 
 // Burst-read the 6 accel output bytes starting at OUTX_L_XL into 3 int16s.
 static void i2cReadAccelRaw(int16_t &ax, int16_t &ay, int16_t &az) {
-  Wire.beginTransmission(LSM6DS3_ADDR);
-  Wire.write(REG_OUTX_L_XL);
-  Wire.endTransmission(false);          // repeated start
-  Wire.requestFrom((int)LSM6DS3_ADDR, 6);
+  Wire1.beginTransmission(LSM6DS3_ADDR);
+  Wire1.write(REG_OUTX_L_XL);
+  Wire1.endTransmission(false);         // repeated start
+  Wire1.requestFrom((int)LSM6DS3_ADDR, 6);
   uint8_t b[6] = {0, 0, 0, 0, 0, 0};
-  for (uint8_t i = 0; i < 6 && Wire.available(); i++) b[i] = Wire.read();
+  for (uint8_t i = 0; i < 6 && Wire1.available(); i++) b[i] = Wire1.read();
   ax = (int16_t)((b[1] << 8) | b[0]);   // little-endian per axis
   ay = (int16_t)((b[3] << 8) | b[2]);
   az = (int16_t)((b[5] << 8) | b[4]);
@@ -217,25 +218,37 @@ static void i2cReadAccelRaw(int16_t &ax, int16_t &ay, int16_t &az) {
 #endif // !IMU_LIB_AVAILABLE
 
 // Enable the on-board IMU power rail on the XIAO nRF52840 SENSE.
-// CRITICAL: The Sense variant gates the LSM6DS3TR-C through a load switch on
-// a dedicated GPIO. If we don't drive it HIGH before Wire ops, the IMU is
-// completely unpowered and every read returns 0 -- which is exactly the
-// symptom we hit (banner OK, then accel/pitch/roll permanently 0,0,0).
 //
-// Seeed's variant file defines PIN_LSM6DS3TR_C_POWER for this purpose, but the
-// macro is only present on certain board-package versions, so we also accept
-// the raw GPIO fallback (P0.27 on the nRF52840 Sense pinout). We pulse it,
-// wait for boot, and verify with a WHO_AM_I read.
+// Two Sense gotchas that BOTH bit us in v1 of this sketch:
+//
+//   1. POWER PIN: The LSM6DS3TR-C is gated through a load switch on GPIO 14
+//      (Arduino pin 14 == nRF P1.10 in Zephyr's devicetree). Without driving
+//      it HIGH at boot, the chip is unpowered and every read returns 0 -- the
+//      exact symptom Wes saw (FAILED at boot, WHO_AM_I = 0x00).
+//
+//   2. I2C BUS: The on-board IMU sits on the SECONDARY I2C bus (Wire1), not
+//      the default user Wire (which is exposed on D4/D5 external pins). The
+//      library handles this internally, but our direct-I2C fallback was
+//      poking Wire and finding nothing. Fixed below by switching to Wire1.
+//
+// Sources for the magic numbers:
+//   - Seeed forum confirming PIN_LSM6DS3TR_C_POWER = 14 (Pi 15 on some BSPs)
+//   - Zephyr xiao_ble_nrf52840_sense.dts: lsm6ds3tr-c-en gpio1 pin 8 (== P1.8
+//     which is GPIO 14 on the Arduino pin map) -- though some board packages
+//     use pin 15 -- we try both for max compatibility.
 static void imuPowerOn() {
 #ifdef PIN_LSM6DS3TR_C_POWER
   pinMode(PIN_LSM6DS3TR_C_POWER, OUTPUT);
   digitalWrite(PIN_LSM6DS3TR_C_POWER, HIGH);
+  Serial.print("  [imu] power pin (macro) = D");
+  Serial.println(PIN_LSM6DS3TR_C_POWER);
 #else
-  // Raw fallback for older Seeed BSPs: GPIO P0.27 = Arduino pin 27 on
-  // the XIAO nRF52840 Sense gates the IMU+mic power rail. Driving it HIGH
-  // is harmless if the macro path was already wired; doing it twice is fine.
-  pinMode(27, OUTPUT);
-  digitalWrite(27, HIGH);
+  // BSP didn't define the macro. Drive BOTH candidate pins HIGH; the wrong
+  // one is a harmless GPIO write on an unused line. The Seeed PlatformIO
+  // variant header reports D14; older Arduino Seeed BSPs report D15.
+  pinMode(14, OUTPUT); digitalWrite(14, HIGH);
+  pinMode(15, OUTPUT); digitalWrite(15, HIGH);
+  Serial.println("  [imu] power pin macro missing -- drove D14 + D15 HIGH");
 #endif
   delay(50);  // LSM6DS3TR-C boot time is ~35 ms after power-up; pad generously.
 }
@@ -258,18 +271,17 @@ bool imuBegin() {
   Serial.println((int)status);
   if (status != 0) return false;
 
-  // Belt-and-suspenders: read WHO_AM_I directly via Wire to confirm the chip
-  // is actually responding. The library can return success even when the bus
-  // is wedged on some board variants.
-  Wire.beginTransmission(0x6A);
-  Wire.write(REG_WHO_AM_I);
-  if (Wire.endTransmission(false) != 0) {
-    Serial.println("  [imu] WHO_AM_I transmit failed -- I2C bus dead");
+  // Belt-and-suspenders: read WHO_AM_I directly via Wire1 to confirm the chip
+  // is actually responding. IMPORTANT: the on-board IMU is on Wire1, NOT Wire.
+  Wire1.beginTransmission(0x6A);
+  Wire1.write(REG_WHO_AM_I);
+  if (Wire1.endTransmission(false) != 0) {
+    Serial.println("  [imu] Wire1 WHO_AM_I transmit failed -- bus dead");
     return false;
   }
-  Wire.requestFrom((int)0x6A, 1);
-  uint8_t who = Wire.available() ? Wire.read() : 0;
-  Serial.print("  [imu] WHO_AM_I = 0x");
+  Wire1.requestFrom((int)0x6A, 1);
+  uint8_t who = Wire1.available() ? Wire1.read() : 0;
+  Serial.print("  [imu] WHO_AM_I (Wire1) = 0x");
   Serial.println(who, HEX);
   if (who != 0x6A && who != 0x69) {
     Serial.println("  [imu] WHO_AM_I mismatch -- chip not responding");
@@ -277,15 +289,25 @@ bool imuBegin() {
   }
   return true;
 #else
-  // Fallback path: bring up Wire, sanity-check WHO_AM_I, configure CTRL1_XL.
-  Wire.begin();
+  // Fallback path: on the XIAO Sense, the on-board IMU sits on Wire1 (the
+  // INTERNAL I2C bus). Using plain Wire would talk to the external D4/D5
+  // header pins where nothing is connected -- which is what caused the
+  // WHO_AM_I = 0x00 symptom in v1.
+  Wire1.begin();
   delay(10);
-  uint8_t who = i2cReadReg(REG_WHO_AM_I);
-  Serial.print("  [imu] WHO_AM_I = 0x");
+  Wire1.beginTransmission(LSM6DS3_ADDR);
+  Wire1.write(REG_WHO_AM_I);
+  Wire1.endTransmission(false);
+  Wire1.requestFrom((int)LSM6DS3_ADDR, 1);
+  uint8_t who = Wire1.available() ? Wire1.read() : 0;
+  Serial.print("  [imu] WHO_AM_I (Wire1 fallback) = 0x");
   Serial.println(who, HEX);
-  // LSM6DS3TR-C reports 0x6A; some lots report 0x69. Accept either.
   if (who != 0x6A && who != 0x69) return false;
-  i2cWriteReg(REG_CTRL1_XL, CTRL1_XL_26HZ_2G);
+  // Configure CTRL1_XL via Wire1.
+  Wire1.beginTransmission(LSM6DS3_ADDR);
+  Wire1.write(REG_CTRL1_XL);
+  Wire1.write(CTRL1_XL_26HZ_2G);
+  Wire1.endTransmission();
   delay(20);
   return true;
 #endif
