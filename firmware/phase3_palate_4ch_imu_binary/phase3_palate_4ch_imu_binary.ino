@@ -120,21 +120,19 @@
 #include <Wire.h>
 #include <math.h>
 
-// Define this (or let the build define it) to use the Seeed library path.
-// Comment it out to force the direct-I2C fallback. We auto-detect the header
-// so an absent library degrades gracefully rather than failing to compile.
-#ifndef USE_LSM6DS3_LIB
-#define USE_LSM6DS3_LIB 1
-#endif
-
-#if USE_LSM6DS3_LIB && __has_include("LSM6DS3.h")
-  #include "LSM6DS3.h"
-  #define IMU_LIB_AVAILABLE 1
-  // I2C device mode, address 0x6A (SA0 low on the XIAO Sense module).
-  LSM6DS3 imu(I2C_MODE, 0x6A);
-#else
-  #define IMU_LIB_AVAILABLE 0
-#endif
+// REQUIRED LIBRARY: "Seeed Arduino LSM6DS3" by Seeed Studio (Library Manager).
+// Header lives at the library root as LSM6DS3.h. We include it unconditionally
+// because the previous __has_include() guard silently fell through to a
+// disabled-IMU path when both Arduino_LSM6DS3 (wrong) and Seeed_Arduino_LSM6DS3
+// (correct) were installed -- the include resolution got confused.
+//
+// If this #include fails to compile with 'No such file or directory', the
+// Seeed library isn't actually installed -- open Library Manager and install
+// "Seeed Arduino LSM6DS3" by Seeed Studio (version 2.0.x).
+#include "LSM6DS3.h"
+#define IMU_LIB_AVAILABLE 1
+// I2C device mode, address 0x6A (SA0 low on the XIAO Sense module).
+LSM6DS3 imu(I2C_MODE, 0x6A);
 
 // --------- IMU register constants (direct-I2C fallback path) ---------
 static const uint8_t LSM6DS3_ADDR     = 0x6A; // SA0 low on XIAO Sense
@@ -342,11 +340,7 @@ void setup() {
   Serial.print("Packet size: ");
   Serial.print(PKT_SIZE);
   Serial.println(" bytes");
-#if IMU_LIB_AVAILABLE
-  Serial.println("IMU path: Seeed_Arduino_LSM6DS3 library");
-#else
-  Serial.println("IMU path: direct I2C fallback (Wire, reg 0x28)");
-#endif
+  Serial.println("IMU path: Seeed_Arduino_LSM6DS3 library (Wire1, on-board)");
 
   // ---- IMU init ----
   imuReady = imuBegin();
