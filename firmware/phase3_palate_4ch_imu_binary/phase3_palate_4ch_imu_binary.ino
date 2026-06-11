@@ -305,14 +305,26 @@ void printImuDiag() {
   Serial.print("  roll="); Serial.println(roll, 1);
 }
 
+// Shared command dispatch -- used by both BLE UART and USB Serial input so
+// bench testing over USB triggers the same actions as the app over BLE.
+static inline void handleCommandChar(int c) {
+  if (c == 'z' || c == 'Z') rezeroRequested = true;
+  else if (c == 'r' || c == 'R') reportRequested = true;
+  else if (c == 'i' || c == 'I') imuDiagRequested = true;
+  // ignore everything else -- protocol stays small on purpose
+}
+
 // BLE RX callback fires from BLE task context. Keep it cheap: flip flags only.
 void bleRxCallback(uint16_t /*conn_handle*/) {
   while (bleuart.available()) {
-    int c = bleuart.read();
-    if (c == 'z' || c == 'Z') rezeroRequested = true;
-    else if (c == 'r' || c == 'R') reportRequested = true;
-    else if (c == 'i' || c == 'I') imuDiagRequested = true;
-    // ignore everything else -- protocol stays small on purpose
+    handleCommandChar(bleuart.read());
+  }
+}
+
+// Drain USB Serial in loop() so 'z'/'r'/'i' work from Arduino Serial Monitor.
+static inline void pollSerialCommands() {
+  while (Serial.available()) {
+    handleCommandChar(Serial.read());
   }
 }
 
@@ -359,7 +371,10 @@ void setup() {
 }
 
 void loop() {
-  // ---- Handle pending BLE RX commands first ----
+  // ---- Drain USB Serial commands (BLE RX flags already set via callback) ----
+  pollSerialCommands();
+
+  // ---- Handle pending command flags (set by either BLE or USB Serial) ----
   if (rezeroRequested) {
     rezeroRequested = false;
     Serial.println("Re-zero requested: capturing baselines...");
