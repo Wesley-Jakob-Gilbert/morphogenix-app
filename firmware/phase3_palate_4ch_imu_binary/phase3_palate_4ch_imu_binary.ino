@@ -185,37 +185,9 @@ volatile bool imuDiagRequested = false;
 // --------- IMU helpers ---------
 bool imuReady = false;
 
-#if !IMU_LIB_AVAILABLE
-// ---- Direct-I2C fallback: minimal raw register access via Wire1 ----
-// IMU lives on Wire1 (internal bus) on the XIAO nRF52840 Sense.
-static void i2cWriteReg(uint8_t reg, uint8_t val) {
-  Wire1.beginTransmission(LSM6DS3_ADDR);
-  Wire1.write(reg);
-  Wire1.write(val);
-  Wire1.endTransmission();
-}
-
-static uint8_t i2cReadReg(uint8_t reg) {
-  Wire1.beginTransmission(LSM6DS3_ADDR);
-  Wire1.write(reg);
-  Wire1.endTransmission(false);         // repeated start
-  Wire1.requestFrom((int)LSM6DS3_ADDR, 1);
-  return Wire1.available() ? Wire1.read() : 0;
-}
-
-// Burst-read the 6 accel output bytes starting at OUTX_L_XL into 3 int16s.
-static void i2cReadAccelRaw(int16_t &ax, int16_t &ay, int16_t &az) {
-  Wire1.beginTransmission(LSM6DS3_ADDR);
-  Wire1.write(REG_OUTX_L_XL);
-  Wire1.endTransmission(false);         // repeated start
-  Wire1.requestFrom((int)LSM6DS3_ADDR, 6);
-  uint8_t b[6] = {0, 0, 0, 0, 0, 0};
-  for (uint8_t i = 0; i < 6 && Wire1.available(); i++) b[i] = Wire1.read();
-  ax = (int16_t)((b[1] << 8) | b[0]);   // little-endian per axis
-  ay = (int16_t)((b[3] << 8) | b[2]);
-  az = (int16_t)((b[5] << 8) | b[4]);
-}
-#endif // !IMU_LIB_AVAILABLE
+// (Direct-I2C fallback code removed in v3 -- it deadlocked on Wire1 init.
+// We now rely entirely on the Seeed Arduino LSM6DS3 library, which handles
+// the internal Wire1 + power-pin sequencing correctly across BSP versions.)
 
 // Enable the on-board IMU power rail on the XIAO nRF52840 SENSE.
 //
@@ -262,6 +234,9 @@ bool imuBegin() {
 #if IMU_LIB_AVAILABLE
   // Library path: write settings BEFORE begin() so the library applies them
   // during its register-config phase. Some library versions ignore late writes.
+  // The Seeed library internally handles Wire1 routing for the on-board IMU,
+  // so we do NOT poke Wire1 directly here -- doing so deadlocked v2 on some
+  // BSPs because Wire1 wasn't pre-configured with the right SDA/SCL pins.
   imu.settings.accelEnabled  = 1;
   imu.settings.accelRange    = 2;    // +/-2g
   imu.settings.accelSampleRate = 26; // 26 Hz ODR
@@ -269,47 +244,13 @@ bool imuBegin() {
   status_t status = imu.begin();
   Serial.print("  [imu] library begin() status = ");
   Serial.println((int)status);
-  if (status != 0) return false;
-
-  // Belt-and-suspenders: read WHO_AM_I directly via Wire1 to confirm the chip
-  // is actually responding. IMPORTANT: the on-board IMU is on Wire1, NOT Wire.
-  Wire1.beginTransmission(0x6A);
-  Wire1.write(REG_WHO_AM_I);
-  if (Wire1.endTransmission(false) != 0) {
-    Serial.println("  [imu] Wire1 WHO_AM_I transmit failed -- bus dead");
-    return false;
-  }
-  Wire1.requestFrom((int)0x6A, 1);
-  uint8_t who = Wire1.available() ? Wire1.read() : 0;
-  Serial.print("  [imu] WHO_AM_I (Wire1) = 0x");
-  Serial.println(who, HEX);
-  if (who != 0x6A && who != 0x69) {
-    Serial.println("  [imu] WHO_AM_I mismatch -- chip not responding");
-    return false;
-  }
-  return true;
+  return (status == 0);
 #else
-  // Fallback path: on the XIAO Sense, the on-board IMU sits on Wire1 (the
-  // INTERNAL I2C bus). Using plain Wire would talk to the external D4/D5
-  // header pins where nothing is connected -- which is what caused the
-  // WHO_AM_I = 0x00 symptom in v1.
-  Wire1.begin();
-  delay(10);
-  Wire1.beginTransmission(LSM6DS3_ADDR);
-  Wire1.write(REG_WHO_AM_I);
-  Wire1.endTransmission(false);
-  Wire1.requestFrom((int)LSM6DS3_ADDR, 1);
-  uint8_t who = Wire1.available() ? Wire1.read() : 0;
-  Serial.print("  [imu] WHO_AM_I (Wire1 fallback) = 0x");
-  Serial.println(who, HEX);
-  if (who != 0x6A && who != 0x69) return false;
-  // Configure CTRL1_XL via Wire1.
-  Wire1.beginTransmission(LSM6DS3_ADDR);
-  Wire1.write(REG_CTRL1_XL);
-  Wire1.write(CTRL1_XL_26HZ_2G);
-  Wire1.endTransmission();
-  delay(20);
-  return true;
+  // No fallback: if the Seeed library isn't installed, we report failure
+  // rather than try to drive Wire1 ourselves (which deadlocked some BSPs).
+  // Install "Seeed Arduino LSM6DS3" via Library Manager and re-flash.
+  Serial.println("  [imu] Seeed LSM6DS3 library not detected -- cannot init");
+  return false;
 #endif
 }
 
@@ -323,7 +264,8 @@ void imuReadRaw(int16_t &ax, int16_t &ay, int16_t &az) {
   ay = imu.readRawAccelY();
   az = imu.readRawAccelZ();
 #else
-  i2cReadAccelRaw(ax, ay, az);
+  // No direct-I2C fallback (removed in v3 -- deadlocked Wire1 on some BSPs).
+  ax = 0; ay = 0; az = 0;
 #endif
 }
 
