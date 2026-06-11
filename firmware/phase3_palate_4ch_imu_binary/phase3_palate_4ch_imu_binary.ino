@@ -216,21 +216,73 @@ static void i2cReadAccelRaw(int16_t &ax, int16_t &ay, int16_t &az) {
 }
 #endif // !IMU_LIB_AVAILABLE
 
+// Enable the on-board IMU power rail on the XIAO nRF52840 SENSE.
+// CRITICAL: The Sense variant gates the LSM6DS3TR-C through a load switch on
+// a dedicated GPIO. If we don't drive it HIGH before Wire ops, the IMU is
+// completely unpowered and every read returns 0 -- which is exactly the
+// symptom we hit (banner OK, then accel/pitch/roll permanently 0,0,0).
+//
+// Seeed's variant file defines PIN_LSM6DS3TR_C_POWER for this purpose, but the
+// macro is only present on certain board-package versions, so we also accept
+// the raw GPIO fallback (P0.27 on the nRF52840 Sense pinout). We pulse it,
+// wait for boot, and verify with a WHO_AM_I read.
+static void imuPowerOn() {
+#ifdef PIN_LSM6DS3TR_C_POWER
+  pinMode(PIN_LSM6DS3TR_C_POWER, OUTPUT);
+  digitalWrite(PIN_LSM6DS3TR_C_POWER, HIGH);
+#else
+  // Raw fallback for older Seeed BSPs: GPIO P0.27 = Arduino pin 27 on
+  // the XIAO nRF52840 Sense gates the IMU+mic power rail. Driving it HIGH
+  // is harmless if the macro path was already wired; doing it twice is fine.
+  pinMode(27, OUTPUT);
+  digitalWrite(27, HIGH);
+#endif
+  delay(50);  // LSM6DS3TR-C boot time is ~35 ms after power-up; pad generously.
+}
+
 // Initialize the accelerometer at +/-2g, 26 Hz. Returns true on success.
 bool imuBegin() {
+  // ALWAYS power the IMU rail first, regardless of which init path follows.
+  // This is the fix for the "reads all zeros" failure mode.
+  imuPowerOn();
+
 #if IMU_LIB_AVAILABLE
-  // Library path: settings come from the LSM6DS3 instance defaults; we set
-  // accel range/rate explicitly so they match the comment above regardless
-  // of library version defaults.
+  // Library path: write settings BEFORE begin() so the library applies them
+  // during its register-config phase. Some library versions ignore late writes.
   imu.settings.accelEnabled  = 1;
   imu.settings.accelRange    = 2;    // +/-2g
   imu.settings.accelSampleRate = 26; // 26 Hz ODR
   imu.settings.gyroEnabled   = 0;    // we don't need gyro for pitch/roll
-  return imu.begin() == 0;
+  status_t status = imu.begin();
+  Serial.print("  [imu] library begin() status = ");
+  Serial.println((int)status);
+  if (status != 0) return false;
+
+  // Belt-and-suspenders: read WHO_AM_I directly via Wire to confirm the chip
+  // is actually responding. The library can return success even when the bus
+  // is wedged on some board variants.
+  Wire.beginTransmission(0x6A);
+  Wire.write(REG_WHO_AM_I);
+  if (Wire.endTransmission(false) != 0) {
+    Serial.println("  [imu] WHO_AM_I transmit failed -- I2C bus dead");
+    return false;
+  }
+  Wire.requestFrom((int)0x6A, 1);
+  uint8_t who = Wire.available() ? Wire.read() : 0;
+  Serial.print("  [imu] WHO_AM_I = 0x");
+  Serial.println(who, HEX);
+  if (who != 0x6A && who != 0x69) {
+    Serial.println("  [imu] WHO_AM_I mismatch -- chip not responding");
+    return false;
+  }
+  return true;
 #else
   // Fallback path: bring up Wire, sanity-check WHO_AM_I, configure CTRL1_XL.
   Wire.begin();
+  delay(10);
   uint8_t who = i2cReadReg(REG_WHO_AM_I);
+  Serial.print("  [imu] WHO_AM_I = 0x");
+  Serial.println(who, HEX);
   // LSM6DS3TR-C reports 0x6A; some lots report 0x69. Accept either.
   if (who != 0x6A && who != 0x69) return false;
   i2cWriteReg(REG_CTRL1_XL, CTRL1_XL_26HZ_2G);
