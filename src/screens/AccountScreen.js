@@ -11,13 +11,42 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import useStream from '../hooks/useStream';
+import { calibrateSupine, getCalibratedAt } from '../services/headPosition';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 
+function formatCalibratedAt(ts) {
+  if (!ts) return null;
+  const d = new Date(ts);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.toLocaleDateString()} ${hh}:${mm}`;
+}
+
 export default function AccountScreen() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [postureTarget, setPostureTarget] = useState(80);
+
+  // Phase 3 (IMU): in-memory supine calibration. Reads the latest accelG from
+  // the live stream and stores the offset in the headPosition module store.
+  // No persistence yet (future task) — local state just drives the UI label.
+  const { packet } = useStream();
+  const [calibratedAt, setCalibratedAt] = useState(getCalibratedAt());
+
+  const onCalibrateSupine = () => {
+    const accelG = packet?.accelG;
+    if (!accelG || typeof accelG.x !== 'number') {
+      // No IMU data available (e.g. demo mode or phase2 firmware). Be quiet —
+      // the label below stays as-is so the user can see nothing changed.
+      return;
+    }
+    const result = calibrateSupine(accelG);
+    setCalibratedAt(result.calibratedAt);
+  };
+
+  const calibratedLabel = formatCalibratedAt(calibratedAt);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -67,6 +96,25 @@ export default function AccountScreen() {
           <Row label="Status" value="Demo mode (no device connected)" valueAccent={colors.amber} />
           <Row label="Last sync" value="—" />
           <Row label="Battery" value="—" />
+        </Section>
+
+        {/* Head Position (Phase 3 IMU) */}
+        <Section title="Head Position">
+          <View style={styles.calibrateRow}>
+            <Pressable
+              onPress={onCalibrateSupine}
+              style={({ pressed }) => [styles.calibrateBtn, pressed && { opacity: 0.8 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Calibrate supine head position"
+            >
+              <Text style={styles.calibrateBtnText}>Calibrate Supine</Text>
+            </Pressable>
+            <Text style={styles.calibrateMeta}>
+              {calibratedLabel
+                ? `Last calibrated: ${calibratedLabel}`
+                : 'Not yet calibrated'}
+            </Text>
+          </View>
         </Section>
 
         {/* Preferences */}
@@ -285,6 +333,29 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  calibrateRow: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  calibrateBtn: {
+    backgroundColor: colors.teal,
+    borderRadius: 999,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+  },
+  calibrateBtnText: {
+    color: colors.navy,
+    fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 0.3,
+  },
+  calibrateMeta: {
+    color: colors.muted,
+    fontSize: typography.sizes.caption,
+    marginTop: spacing.sm,
   },
   rowLabel: {
     color: colors.white,

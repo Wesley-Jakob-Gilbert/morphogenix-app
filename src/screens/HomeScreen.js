@@ -10,6 +10,7 @@ import DemoBannerPill from '../components/DemoBannerPill';
 import LiveControlsFloating from '../components/LiveControlsFloating';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
+import PositionLog from '../components/PositionLog';
 import ScoreRing from '../components/ScoreRing';
 import TakeawayCard from '../components/TakeawayCard';
 import WearTimeCaption from '../components/WearTimeCaption';
@@ -20,6 +21,7 @@ import useMorphoday from '../hooks/useMorphoday';
 import useSmoothed from '../hooks/useSmoothed';
 import useStream from '../hooks/useStream';
 import useWearTime from '../hooks/useWearTime';
+import { useHeadPositionLog } from '../services/headPosition';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
@@ -30,6 +32,11 @@ export default function HomeScreen({ navigation }) {
   const { aggregate, packets, morphodayWindow, refresh } = useMorphoday(packet);
   const liveDemo = useLiveDemoMetrics(packet, videoMode);
   const wearTime = useWearTime(packets);
+
+  // Phase 3 (IMU): debounced head-position log derived from packet.accelG.
+  // Only meaningful with the phase3 binary-v2 firmware; gated to video/dev mode
+  // in the UI below until real-device validation lands.
+  const { currentPosition, log: positionLog } = useHeadPositionLog(packet);
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -123,6 +130,10 @@ export default function HomeScreen({ navigation }) {
         <WearTimeCaption label={wearTime.label} />
 
         <TakeawayCard takeaway={demoTakeaway} />
+
+        {videoMode ? (
+          <PositionLog log={positionLog} currentPosition={currentPosition} />
+        ) : null}
 
         <View style={styles.grid}>
           <View style={styles.gridRow}>

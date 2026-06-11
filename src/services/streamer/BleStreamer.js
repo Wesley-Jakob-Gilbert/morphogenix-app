@@ -86,6 +86,39 @@ export const CHANNEL_MAP = Object.freeze([
 ]);
 // =========================================================================
 
+// =========================================================================
+// BINARY WIRE FORMAT — mirrored in firmware/phase3_palate_4ch_imu_binary/
+// =========================================================================
+//
+// Auto-detect: the ASCII firmware sends '\n'-terminated text starting with an
+// ASCII digit (0x30..0x39). The binary firmware starts with 0xA7. The magic
+// byte sits outside the ASCII printable range so the sniff is unambiguous.
+//
+// v1 (legacy 6-channel, REFERENCE_6ch_binary.ino):
+//   magic | ver=0x01 | ts(u32 LE) | count(u8) | count*u16 LE adc | xor
+//   -> FSR-only. We fill palate[] from the adc block; accel left undefined.
+//
+// v2 (4 FSR + 3 accel, phase3_palate_4ch_imu_binary.ino):
+//   magic | ver=0x02 | ts(u32 LE) | sensorCount=7(u8) |
+//   4*u16 LE fsr | 3*i16 LE accel | xor
+//   -> populates accel{x,y,z} (raw int16) and accelG{x,y,z} (raw*2/32768).
+const BIN_MAGIC = 0xa7;
+const BIN_VERSION_V1 = 0x01;
+const BIN_VERSION_V2 = 0x02;
+const BIN_HEADER_BYTES = 7; // magic + ver + ts(4) + count
+const BIN_TRAILER_BYTES = 1; // checksum
+// v2 layout: 4 FSR uint16 + 3 accel int16. sensorCount byte reads 7.
+const V2_FSR_COUNT = 4;
+const V2_ACCEL_COUNT = 3;
+// +/-2g full-scale conversion: raw int16 -> g. raw * 2 / 32768.
+const ACCEL_G_PER_LSB = 2 / 32768;
+
+function detectWireFormat(firstByte) {
+  if (firstByte === BIN_MAGIC) return 'binary';
+  return 'ascii';
+}
+// =========================================================================
+
 const PALATE_ZONE_COUNT = 16;
 const AMBIENT_FLOOR = 0.05;
 const MIRROR_LAG_MS = 150;
@@ -174,6 +207,16 @@ export default class BleStreamer {
     // chars, but we still buffer in case a packet arrives across boundaries.
     this.lineBuffer = '';
     this.textDecoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
+
+    // Binary-path reassembly state. Detected wire format is cached for the
+    // session after the first chunk; binBuffer accumulates partial packets.
+    this.binBuffer = null;
+    this.wireFormat = null;
+
+    // One-shot diagnostic flags (also reset in disconnect()).
+    this.loggedFirstChunk = false;
+    this.loggedFirstPacket = false;
+    this.loggedParseFail = false;
 
     // Watchdog timer for "connected but silent" states.
     this.watchdogTimer = null;
@@ -346,6 +389,8 @@ export default class BleStreamer {
     this.server = null;
     this.device = null;
     this.lineBuffer = '';
+    this.binBuffer = null;
+    this.wireFormat = null;
     this.palateMirrorBuffer = [];
     this.clenchAboveSince = null;
     this.clenchArmed = true;
@@ -387,25 +432,45 @@ export default class BleStreamer {
 
   handleNotification(event) {
     const value = event.target && event.target.value; // DataView
-    if (!value || !this.textDecoder) return;
+    if (!value || value.byteLength === 0) return;
 
-    // Each notification is a few bytes of UTF-8. Append to the line buffer
-    // and emit a packet for every complete '\n'-terminated line we see.
-    const chunk = this.textDecoder.decode(value);
+    const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
 
-    // First-byte diagnostic: log exactly once per connection so we can tell
-    // "firmware silent" from "firmware sending garbage" from "all good." The
-    // hex dump is capped at 32 bytes so we don't spam the on-screen log.
+    // First-chunk diagnostic + format auto-detect. Fires exactly once per
+    // connection so we can tell "firmware silent" from "firmware sending
+    // garbage" from "all good." The detected format is cached for the rest of
+    // the session so we don't re-sniff every notification.
     if (!this.loggedFirstChunk) {
       this.loggedFirstChunk = true;
-      const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+      this.wireFormat = detectWireFormat(bytes[0]);
       const hex = Array.from(bytes.slice(0, 32))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join(' ');
-      const ascii = chunk.replace(/[^\x20-\x7e]/g, '.').slice(0, 40);
-      debugLog(`first chunk: ${value.byteLength}B  hex[${hex}]  ascii["${ascii}"]`);
+      const asciiPreview = this.textDecoder
+        ? this.textDecoder
+            .decode(value)
+            .replace(/[^\x20-\x7e]/g, '.')
+            .slice(0, 40)
+        : '';
+      debugLog(
+        `first chunk: ${value.byteLength}B  format=${this.wireFormat}  hex[${hex}]  ascii["${asciiPreview}"]`
+      );
     }
 
+    if (this.wireFormat === 'binary') {
+      this.handleBinaryChunk(bytes);
+    } else {
+      this.handleAsciiChunk(value);
+    }
+
+    // Keep the watchdog quiet while data is flowing.
+    this.armWatchdog();
+  }
+
+  // ---- ASCII path: production phase2_palate_4ch_calibrated.ino -----------
+  handleAsciiChunk(value) {
+    if (!this.textDecoder) return;
+    const chunk = this.textDecoder.decode(value);
     this.lineBuffer += chunk;
 
     let newlineIdx;
@@ -416,9 +481,124 @@ export default class BleStreamer {
         this.emitPacketFromLine(line);
       }
     }
+  }
 
-    // Keep the watchdog quiet while data is flowing.
-    this.armWatchdog();
+  // ---- Binary path: phase3 (v2: 4 FSR + 3 accel) and legacy v1 -----------
+  //
+  // BLE doesn't guarantee one notification == one application packet, so we
+  // accumulate into a byte buffer and pull complete packets off the front.
+  // Anything that doesn't start with the magic byte is resync garbage; we
+  // scan forward to the next magic.
+  handleBinaryChunk(bytes) {
+    if (!this.binBuffer) this.binBuffer = new Uint8Array(0);
+
+    const merged = new Uint8Array(this.binBuffer.length + bytes.length);
+    merged.set(this.binBuffer, 0);
+    merged.set(bytes, this.binBuffer.length);
+    this.binBuffer = merged;
+
+    let pos = 0;
+    while (pos < this.binBuffer.length) {
+      // Resync to the next magic byte.
+      if (this.binBuffer[pos] !== BIN_MAGIC) {
+        pos++;
+        continue;
+      }
+
+      // Need header + at least the count byte + 2 bytes + checksum before we
+      // can size the packet.
+      if (this.binBuffer.length - pos < BIN_HEADER_BYTES + 2 + BIN_TRAILER_BYTES) {
+        break;
+      }
+
+      const version = this.binBuffer[pos + 1];
+      const sensorCount = this.binBuffer[pos + 6];
+
+      // Compute packet size per version. v1: count*u16 FSR. v2: 4 u16 FSR +
+      // 3 i16 accel (sensorCount==7, but the byte layout is fixed regardless).
+      let payloadBytes;
+      if (version === BIN_VERSION_V2) {
+        payloadBytes = 2 * V2_FSR_COUNT + 2 * V2_ACCEL_COUNT; // 14
+      } else if (version === BIN_VERSION_V1) {
+        payloadBytes = 2 * sensorCount;
+      } else {
+        if (!this.loggedParseFail) {
+          this.loggedParseFail = true;
+          debugLog(`parse FAIL (binary version=${version}, expected 1 or 2)`);
+        }
+        pos++; // skip this magic, resync
+        continue;
+      }
+
+      const pktSize = BIN_HEADER_BYTES + payloadBytes + BIN_TRAILER_BYTES;
+
+      // Wait for the rest of the packet.
+      if (this.binBuffer.length - pos < pktSize) break;
+
+      // Verify XOR checksum (all bytes except the checksum itself).
+      let xorSum = 0;
+      for (let i = 0; i < pktSize - 1; i++) xorSum ^= this.binBuffer[pos + i];
+      const sentChecksum = this.binBuffer[pos + pktSize - 1];
+      if (xorSum !== sentChecksum) {
+        if (!this.loggedParseFail) {
+          this.loggedParseFail = true;
+          debugLog(
+            `parse FAIL (checksum: got 0x${sentChecksum.toString(16)}, expected 0x${xorSum.toString(16)})`
+          );
+        }
+        pos++; // skip this magic, resync
+        continue;
+      }
+
+      const dv = new DataView(
+        this.binBuffer.buffer,
+        this.binBuffer.byteOffset + pos,
+        pktSize
+      );
+      const timestampMs = dv.getUint32(2, /* littleEndian */ true);
+
+      if (version === BIN_VERSION_V2) {
+        const fsr = new Array(V2_FSR_COUNT);
+        for (let i = 0; i < V2_FSR_COUNT; i++) {
+          fsr[i] = dv.getUint16(BIN_HEADER_BYTES + 2 * i, true);
+        }
+        const accelOff = BIN_HEADER_BYTES + 2 * V2_FSR_COUNT;
+        const ax = dv.getInt16(accelOff, true);
+        const ay = dv.getInt16(accelOff + 2, true);
+        const az = dv.getInt16(accelOff + 4, true);
+        this.emitPacketFromBinaryV2(timestampMs, fsr, { x: ax, y: ay, z: az });
+      } else {
+        // v1: read `sensorCount` uint16 FSR channels; accel left undefined.
+        const adc = new Array(sensorCount);
+        for (let i = 0; i < sensorCount; i++) {
+          adc[i] = dv.getUint16(BIN_HEADER_BYTES + 2 * i, true);
+        }
+        this.emitPacketFromBinaryV1(timestampMs, adc);
+      }
+
+      pos += pktSize;
+    }
+
+    // Keep only the unconsumed tail for the next notification.
+    this.binBuffer = this.binBuffer.slice(pos);
+  }
+
+  // v1 (legacy 6-channel binary): map the first 4 channels onto the FSR slots
+  // exactly like the ASCII path. If fewer than 4 channels arrive we pad with
+  // zeros so the packet shape is always valid. accel is left undefined.
+  emitPacketFromBinaryV1(timestampMs, adcValues) {
+    const fsr = [
+      adcValues[0] ?? 0,
+      adcValues[1] ?? 0,
+      adcValues[2] ?? 0,
+      adcValues[3] ?? 0,
+    ];
+    this.emitFsrPacket(timestampMs, fsr, /* accelRaw */ null, 'binary v1');
+  }
+
+  // v2: 4 FSR + 3 raw accel. Convert raw int16 -> g and attach both.
+  emitPacketFromBinaryV2(timestampMs, fsrValues, accelRaw) {
+    this.emitFsrPacket(timestampMs, fsrValues, accelRaw, 'binary v2');
   }
 
   emitPacketFromLine(line) {
@@ -443,20 +623,55 @@ export default class BleStreamer {
       return;
     }
 
+    // Hand off to the shared FSR shaper. ASCII has no accel, so accelRaw=null.
+    this.emitFsrPacket(firmwareMs, rawValues, /* accelRaw */ null, 'ascii');
+  }
+
+  // ---- Shared FSR packet shaping (ASCII + binary v1/v2) ------------------
+  // Takes 4 raw FSR ADC values (firmware order: Molar_L, Molar_R, Palate_L,
+  // Palate_R) plus an optional raw accel triple, applies the unchanged LIVE_GAIN
+  // normalization + clench/mirror logic, and emits the IStreamer packet. When
+  // accelRaw is provided (binary v2), accel{} and accelG{} are attached.
+  emitFsrPacket(firmwareMs, rawValues, accelRaw, formatLabel) {
     const clampedRaw = rawValues.map((value) => clamp(value, 0, ADC_MAX));
     const [molarL, molarR, palateL, palateR] = clampedRaw.map((value) =>
       clamp((value / ADC_MAX) * LIVE_GAIN, 0, 1)
     );
 
-    // First-packet diagnostic: log the first successful parse so the user
-    // sees positive confirmation that data is flowing through the pipeline.
+    // Convert raw int16 accel to g-units for v2 packets (+/-2g: raw*2/32768).
+    let accel = null;
+    let accelG = null;
+    if (accelRaw && typeof accelRaw.x === 'number') {
+      accel = { x: accelRaw.x, y: accelRaw.y, z: accelRaw.z };
+      accelG = {
+        x: accelRaw.x * ACCEL_G_PER_LSB,
+        y: accelRaw.y * ACCEL_G_PER_LSB,
+        z: accelRaw.z * ACCEL_G_PER_LSB,
+      };
+    }
+
+    // First-packet diagnostic: log the first successful parse so the user sees
+    // positive confirmation that data is flowing through the pipeline.
     if (!this.loggedFirstPacket) {
       this.loggedFirstPacket = true;
-      debugLog(
-        `first packet OK  adc=[${clampedRaw.join(',')}]  norm=[${[molarL, molarR, palateL, palateR]
-          .map((value) => value.toFixed(3))
-          .join(',')}]`
-      );
+      if (accelG) {
+        debugLog(
+          `first packet OK (${formatLabel})  accel=(${accelG.x.toFixed(3)},${accelG.y.toFixed(
+            3
+          )},${accelG.z.toFixed(3)})g`
+        );
+      } else {
+        debugLog(
+          `first packet OK (${formatLabel})  adc=[${clampedRaw.join(',')}]  norm=[${[
+            molarL,
+            molarR,
+            palateL,
+            palateR,
+          ]
+            .map((value) => value.toFixed(3))
+            .join(',')}]`
+        );
+      }
     }
 
     const { frontL, frontR } = this.computeLaggedMirrors(firmwareMs, palateL, palateR);
@@ -484,6 +699,13 @@ export default class BleStreamer {
       palateNormalized: realMean, // mean of the four real normalized channels
       source: 'ble-web',
     };
+
+    // Phase 3: attach IMU fields when present (binary v2 only). Left undefined
+    // for ASCII and binary v1 so downstream consumers can feature-detect.
+    if (accel) {
+      packet.accel = accel;
+      packet.accelG = accelG;
+    }
 
     this.subscribers.forEach((cb) => cb(packet));
   }
@@ -581,4 +803,9 @@ export {
   MIRROR_LAG_MS,
   MIRROR_BUFFER_MS,
   CLENCH_HOLD_MS,
+  BIN_MAGIC,
+  BIN_VERSION_V1,
+  BIN_VERSION_V2,
+  ACCEL_G_PER_LSB,
+  detectWireFormat,
 };

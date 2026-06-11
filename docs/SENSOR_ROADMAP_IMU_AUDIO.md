@@ -1,7 +1,25 @@
 # Sensor Roadmap: Head Position + Snore Audio
 
-**Status:** Design doc, no code yet. Drafted June 2, 2026, against the `feature/four-fsr-calibrated` branch.
+**Status:** Phase 1 (head position / IMU) is **IN PROGRESS** — firmware sketch,
+binary v2 protocol, app-side parsing, position classifier, position-log UI, and
+calibration flow are implemented on `develop` and unit-tested. **NOT yet
+validated on real hardware** — pitch/roll sign conventions and the supine/side
+bucket boundaries must be confirmed against a flashed XIAO Sense before this is
+marked complete. Phase 2 (snore audio) remains a design doc, no code yet.
+Originally drafted June 2, 2026 against `feature/four-fsr-calibrated`.
 **Hardware:** Seeed Studio XIAO nRF52840 **Sense** (the "Sense" variant — has IMU + mic; the non-Sense variant does not).
+
+> **Phase 3 implementation note (IN PROGRESS).** Rather than the ASCII `IMU,...`
+> line approach sketched in section 1 below, the shipped implementation uses a
+> **binary wire protocol v2** (magic `0xA7`, version `0x02`) that carries the 4
+> FSR channels plus 3 raw accelerometer axes in a fixed 22-byte packet. See
+> `firmware/phase3_palate_4ch_imu_binary/` for the sketch + README, and
+> `src/services/headPosition.js` for the `classifyPosition()` classifier and
+> `useHeadPositionLog()` hook. The app `BleStreamer.js` auto-detects ASCII vs
+> binary on the first byte and supports both binary v1 (legacy 6ch) and v2.
+> The original ASCII-segment design in section 1 is retained for historical
+> context. Remaining before "complete": real-device validation of axis signs,
+> bucket thresholds, IMU power draw, and overnight log behavior.
 
 This doc covers two future signal channels we want to layer on top of the existing 4 FSRs without re-architecting the BLE protocol or the app's streamer interface.
 
