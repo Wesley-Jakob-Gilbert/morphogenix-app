@@ -113,6 +113,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 28,
     lineHeight: 32,
+    // Big numeral → Inter Black display face (Roadmap V2 #1).
+    fontFamily: typography.familyDisplay,
     fontWeight: typography.weights.display,
     letterSpacing: -0.5,
   },

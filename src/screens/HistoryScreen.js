@@ -210,6 +210,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    fontFamily: typography.family.bold,
     fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
