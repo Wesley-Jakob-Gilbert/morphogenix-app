@@ -198,7 +198,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xxxl,
+    // Clear the floating frosted tab bar (#3): content scrolls UNDER it.
+    paddingBottom: 90,
   },
   header: {
     paddingTop: spacing.md,
