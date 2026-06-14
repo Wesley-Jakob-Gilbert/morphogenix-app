@@ -222,7 +222,8 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
-    paddingBottom: spacing.xxxl,
+    // Clear the floating frosted tab bar (#3): content scrolls UNDER it.
+    paddingBottom: 90,
   },
   kicker: {
     color: colors.teal,
@@ -234,6 +235,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    fontFamily: typography.family.bold,
     fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },

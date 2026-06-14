@@ -124,6 +124,9 @@ const styles = StyleSheet.create({
   title: {
     color: colors.white,
     fontSize: typography.sizes.callout,
+    // Heavy title (not a big numeral) → Inter Bold preserves the existing
+    // heavy hierarchy without the over-weight Black display cut (V2 #1).
+    fontFamily: typography.family.bold,
     fontWeight: typography.weights.display,
     lineHeight: typography.lineHeights.callout,
     letterSpacing: -0.2,
