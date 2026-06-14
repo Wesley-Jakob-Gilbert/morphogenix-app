@@ -172,7 +172,16 @@ export default function ScoreRing({
           <Text style={styles.value}>{formatValue(displayNum)}</Text>
           {suffix ? <Text style={styles.suffix}>{suffix}</Text> : null}
         </View>
-        {label ? <Text style={styles.label}>{label}</Text> : null}
+        {label ? (
+          <Text
+            style={[styles.label, { maxWidth: size - strokeWidth * 2 - 16 }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.8}
+          >
+            {label}
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -267,10 +276,11 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.muted,
-    fontSize: typography.micro.size,
-    letterSpacing: typography.micro.letterSpacing,
+    fontSize: 10,
+    letterSpacing: 0.8,
     fontWeight: typography.weights.bold,
-    marginTop: spacing.xs,
+    marginTop: 2,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
 });
