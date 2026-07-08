@@ -6,6 +6,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
 
 // Round 3 #1: SVG element `id`s must be safe across renderers. Titles like
 // "Palatal Pressure" previously produced ids with spaces (`sheen-Palatal
@@ -21,11 +22,18 @@ export function slugify(str) {
 
 export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline = [10, 18, 13, 24, 20, 30] }) {
   const sheenId = `sheen-${slugify(title)}`;
+  // Round 3 #4: the tile is the primary gesture on Home and was silent. Fire a
+  // selection tick on press-in (not on release) so the feedback lands the
+  // instant the finger touches, matching Apple/Oura tactile timing.
+  const onPressIn = () => {
+    haptics.selection();
+  };
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${title} analytics`}
       onPress={onPress}
+      onPressIn={onPressIn}
       style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
       {/* Faint radial sheen tinted by the tile accent — gives the flat surface

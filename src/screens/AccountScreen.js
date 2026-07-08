@@ -17,6 +17,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
 
 function formatCalibratedAt(ts) {
   if (!ts) return null;
@@ -35,16 +36,31 @@ export default function AccountScreen() {
   // No persistence yet (future task) — local state just drives the UI label.
   const { packet } = useStream();
   const [calibratedAt, setCalibratedAt] = useState(getCalibratedAt());
+  // Round 3 #4: inline error surfaced when calibration has no sensor data.
+  const [calibrateError, setCalibrateError] = useState(null);
 
   const onCalibrateSupine = () => {
     const accelG = packet?.accelG;
     if (!accelG || typeof accelG.x !== 'number') {
-      // No IMU data available (e.g. demo mode or phase2 firmware). Be quiet —
-      // the label below stays as-is so the user can see nothing changed.
+      // Round 3 #4: failure used to be invisible — tapping the teal button did
+      // nothing (a trust killer). Now fire a warning haptic and show an inline
+      // error so the user understands why nothing changed.
+      haptics.warning();
+      setCalibrateError('No sensor data — connect a device.');
       return;
     }
     const result = calibrateSupine(accelG);
     setCalibratedAt(result.calibratedAt);
+    setCalibrateError(null);
+    // The one moment a success notification really lands (§5 highest-value
+    // haptic in the app).
+    haptics.success();
+  };
+
+  // Round 3 #4: selection tick + clamp for the posture-target adjuster.
+  const adjustPostureTarget = (delta) => {
+    haptics.selection();
+    setPostureTarget((v) => Math.max(50, Math.min(100, v + delta)));
   };
 
   const calibratedLabel = formatCalibratedAt(calibratedAt);
@@ -77,13 +93,13 @@ export default function AccountScreen() {
             </View>
             <View style={styles.adjuster}>
               <Pressable
-                onPress={() => setPostureTarget((v) => Math.max(50, v - 5))}
+                onPress={() => adjustPostureTarget(-5)}
                 style={styles.adjustBtn}
               >
                 <Text style={styles.adjustBtnText}>−</Text>
               </Pressable>
               <Pressable
-                onPress={() => setPostureTarget((v) => Math.min(100, v + 5))}
+                onPress={() => adjustPostureTarget(5)}
                 style={styles.adjustBtn}
               >
                 <Text style={styles.adjustBtnText}>+</Text>
@@ -115,6 +131,9 @@ export default function AccountScreen() {
                 ? `Last calibrated: ${calibratedLabel}`
                 : 'Not yet calibrated'}
             </Text>
+            {calibrateError ? (
+              <Text style={styles.calibrateError}>{calibrateError}</Text>
+            ) : null}
           </View>
         </Section>
 
@@ -207,8 +226,11 @@ function Row({ label, value, valueAccent }) {
 }
 
 function PushRow({ label, onPress }) {
+  // Round 3 #4: settings taps were silent. Selection tick on press-in, then
+  // run the row's action on release.
   return (
     <Pressable
+      onPressIn={() => haptics.selection()}
       onPress={onPress}
       style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
     >
@@ -359,6 +381,14 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: typography.sizes.caption,
     marginTop: spacing.sm,
+  },
+  calibrateError: {
+    // Amber = attention/warning (pairs with the warning haptic). NOT stateRed,
+    // which is reserved exclusively for the "improve" metric threshold.
+    color: colors.amber,
+    fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.medium,
+    marginTop: spacing.xs,
   },
   rowLabel: {
     color: colors.white,

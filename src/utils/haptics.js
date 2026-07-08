@@ -12,10 +12,11 @@ import { Platform } from 'react-native';
  * so every method is a no-op there. The method surface is identical across
  * platforms so callers never need their own `Platform.OS` checks.
  *
- * Scope note: for this round the wrapper is only consumed by the animated
- * ScoreRing settle (#2) and the tab-bar tab change (#3). The broader rollout
- * across every primary interaction is a separate P1 item — do NOT wire this
- * into tiles, pills, rows, etc. yet.
+ * Scope note (updated Round 3): the wrapper is now wired across the primary
+ * interactions per Round 3 #4 — MetricTile press, Analytics period pills,
+ * History row press, Account +/- adjuster + PushRow, and Calibrate Supine
+ * (success/warning). The earlier "do NOT wire this into tiles/pills/rows yet"
+ * hold has been lifted by Wes.
  */
 
 const noop = () => {};

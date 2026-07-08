@@ -13,6 +13,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
 
 const PERIODS = [
   { id: 'today', label: 'Today' },
@@ -189,6 +190,14 @@ export default function AnalyticsScreen({ route }) {
 
   const data = DATA[period];
 
+  // Round 3 #4: period-pill changes were silent. Fire a selection tick on an
+  // actual change (no tick when tapping the already-active pill).
+  const onSelectPeriod = (id) => {
+    if (id === period) return;
+    haptics.selection();
+    setPeriod(id);
+  };
+
   useEffect(() => {
     if (!anchor) return;
     const t = setTimeout(() => {
@@ -216,7 +225,7 @@ export default function AnalyticsScreen({ route }) {
             return (
               <Pressable
                 key={p.id}
-                onPress={() => setPeriod(p.id)}
+                onPress={() => onSelectPeriod(p.id)}
                 style={[styles.pill, active && styles.pillActive]}
               >
                 <Text style={[styles.pillText, active && styles.pillTextActive]}>{p.label}</Text>

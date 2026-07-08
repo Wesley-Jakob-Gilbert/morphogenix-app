@@ -7,6 +7,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
 
 // 14 days of plausible composite wellness scores (0..1)
 const HEATMAP = [
@@ -165,8 +166,16 @@ function compositeColor(v) {
 }
 
 function DayRow({ day }) {
+  // Round 3 #4 + Wes decision #3: the row press was dead (depressed, went
+  // nowhere). A day-detail screen is deferred, so for now fire a selection
+  // tick on press-in and keep the visual press feedback — the gesture no
+  // longer feels broken.
   return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+    <Pressable
+      accessibilityRole="button"
+      onPressIn={() => haptics.selection()}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
       <View style={styles.rowHead}>
         <View>
           <Text style={styles.dayLabel}>{day.label}</Text>
