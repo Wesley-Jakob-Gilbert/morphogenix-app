@@ -416,9 +416,15 @@ const styles = StyleSheet.create({
   },
   heroNumber: {
     color: colors.white,
-    fontSize: 38,
-    lineHeight: 44,
-    fontWeight: typography.weights.bold,
+    // Round 3 #2: the biggest number on this screen was falling back to Inter
+    // Regular at a bold weight (no `fontFamily`) instead of the Inter Black
+    // display cut used by the ScoreRing / MetricTile heroes. Route it through
+    // the display face so hero numerals are consistent across tabs. Size/line
+    // land on the new heroNumber scale token (#8) instead of magic 38/44.
+    fontFamily: typography.familyDisplay,
+    fontSize: typography.sizes.heroNumber,
+    lineHeight: typography.lineHeights.heroNumber,
+    letterSpacing: -0.5,
     marginTop: spacing.sm,
   },
   delta: {
