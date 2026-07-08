@@ -586,8 +586,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    // Named Inter family carries the weight (Round 3 #8 — dropped no-op
+    // numeric fontWeight).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
   pillRow: {
@@ -656,7 +657,7 @@ const styles = StyleSheet.create({
   delta: {
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.bold,
-    marginTop: 4,
+    marginTop: spacing.xs,
   },
   chartWrap: {
     marginTop: spacing.md,
@@ -682,10 +683,12 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
   meaning: {
+    // Round 3 #8: dropped `fontStyle: 'italic'` (the bundled Inter face has no
+    // italic cut, so it rendered as a faux/again-regular slant). Read as calm
+    // muted body copy with a touch more line-height instead.
     color: colors.muted,
     fontSize: typography.sizes.caption,
-    lineHeight: typography.lineHeights.caption,
-    fontStyle: 'italic',
+    lineHeight: typography.lineHeights.body,
     marginTop: spacing.md,
   },
 });

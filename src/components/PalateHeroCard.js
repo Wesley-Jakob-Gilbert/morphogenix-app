@@ -274,9 +274,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.title,
     lineHeight: typography.lineHeights.title,
-    // Heavy section title → Inter Bold (Roadmap V2 #1).
+    // Heavy section title → Inter Bold (Roadmap V2 #1). Named family carries
+    // the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.display,
     letterSpacing: -0.3,
     marginTop: spacing.xs,
   },

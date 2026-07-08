@@ -221,8 +221,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
   subtitle: {
@@ -279,7 +279,7 @@ const styles = StyleSheet.create({
   daySub: {
     color: colors.muted,
     fontSize: typography.sizes.tiny,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   wear: {
     color: colors.muted,

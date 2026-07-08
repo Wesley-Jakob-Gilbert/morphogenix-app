@@ -258,8 +258,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
   section: {
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
   email: {
     color: colors.muted,
     fontSize: typography.sizes.caption,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   goalRow: {
     flexDirection: 'row',
@@ -330,7 +330,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   adjuster: {
     flexDirection: 'row',

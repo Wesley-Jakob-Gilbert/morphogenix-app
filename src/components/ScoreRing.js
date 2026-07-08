@@ -271,9 +271,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.display,
     lineHeight: typography.lineHeights.display,
-    // Headline numeral → Inter Black display face (Roadmap V2 #1).
+    // Headline numeral → Inter Black display face (Roadmap V2 #1). The display
+    // face carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.familyDisplay,
-    fontWeight: typography.weights.display,
     letterSpacing: -1,
   },
   suffix: {
@@ -281,14 +281,15 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.bold,
     marginTop: spacing.sm,
-    marginLeft: 2,
+    marginLeft: spacing.xxs,
   },
   label: {
     color: colors.muted,
-    fontSize: 10,
+    // Round 3 #8: was a magic `fontSize: 10` — now the `micro` scale token.
+    fontSize: typography.sizes.micro,
     letterSpacing: 0.8,
     fontWeight: typography.weights.bold,
-    marginTop: 2,
+    marginTop: spacing.xxs,
     textTransform: 'uppercase',
     textAlign: 'center',
   },

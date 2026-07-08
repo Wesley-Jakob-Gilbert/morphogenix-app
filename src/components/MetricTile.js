@@ -146,9 +146,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 28,
     lineHeight: 32,
-    // Big numeral → Inter Black display face (Roadmap V2 #1).
+    // Big numeral → Inter Black display face (Roadmap V2 #1). The display face
+    // carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.familyDisplay,
-    fontWeight: typography.weights.display,
     letterSpacing: -0.5,
   },
   unit: {
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.bold,
     marginLeft: spacing.xs,
-    marginBottom: 3,
+    marginBottom: spacing.xxs,
   },
   sparkline: {
     marginTop: spacing.md,

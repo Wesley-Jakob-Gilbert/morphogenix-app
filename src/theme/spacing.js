@@ -1,4 +1,7 @@
 const spacing = {
+  // Round 3 (#8): a 2px hairline step for the tiny label/numeral offsets that
+  // were hard-coded as `marginTop: 2` etc. Keeps micro-nudges on the scale.
+  xxs: 2,
   xs: 4,
   sm: 8,
   md: 12,

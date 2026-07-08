@@ -118,9 +118,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.callout,
     // Heavy title (not a big numeral) → Inter Bold preserves the existing
-    // heavy hierarchy without the over-weight Black display cut (V2 #1).
+    // heavy hierarchy without the over-weight Black display cut (V2 #1). Named
+    // family carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.display,
     lineHeight: typography.lineHeights.callout,
     letterSpacing: -0.2,
     flexShrink: 1,
@@ -191,11 +191,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   disclaimer: {
+    // Round 3 #8: dropped `fontStyle: 'italic'` — the bundled Inter face has no
+    // italic cut, so it slanted via faux-italic (or not at all). Lower opacity
+    // already sets it apart as fine print.
     color: colors.muted,
     fontSize: typography.sizes.tiny,
     lineHeight: 15,
     marginTop: spacing.md,
-    fontStyle: 'italic',
     opacity: 0.7,
   },
 });
