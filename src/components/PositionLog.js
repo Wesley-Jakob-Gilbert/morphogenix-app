@@ -5,11 +5,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
-
-// Subtle gold for the PREMIUM pill. Copied from TakeawayCard rather than
-// refactored into a shared component on purpose (premature abstraction) —
-// keep this value in sync with TakeawayCard's PREMIUM_GOLD if it ever changes.
-const PREMIUM_GOLD = '#E5C572';
+import PremiumPill from './PremiumPill';
 
 /**
  * PositionLog
@@ -74,9 +70,7 @@ export default function PositionLog({ log = [], currentPosition }) {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Head Position</Text>
-        <View style={styles.premiumPill}>
-          <Text style={styles.premiumPillText}>PREMIUM FEATURE</Text>
-        </View>
+        <PremiumPill />
       </View>
 
       {entries.length === 0 ? (
@@ -149,21 +143,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     flexShrink: 1,
     paddingRight: spacing.sm,
-  },
-  // Pill styling copied from TakeawayCard (intentional duplication).
-  premiumPill: {
-    backgroundColor: 'rgba(229, 197, 114, 0.12)',
-    borderColor: 'rgba(229, 197, 114, 0.45)',
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  premiumPillText: {
-    color: PREMIUM_GOLD,
-    fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1.2,
   },
   list: {
     maxHeight: 220,

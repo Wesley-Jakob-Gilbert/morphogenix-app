@@ -5,10 +5,7 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
-
-// Subtle gold for the PREMIUM pill — distinct from the amber metric accent so it
-// reads as "tier" not "data". RGB roughly matches Apple's "premium gold" palette.
-const PREMIUM_GOLD = '#E5C572';
+import PremiumPill from './PremiumPill';
 
 /**
  * TakeawayCard
@@ -39,9 +36,7 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
     <View style={styles.card} accessibilityRole="summary" accessibilityLabel="Daily takeaway">
       <View style={styles.header}>
         <Text style={styles.title}>{takeaway.title}</Text>
-        <View style={styles.premiumPill}>
-          <Text style={styles.premiumPillText}>PREMIUM FEATURE</Text>
-        </View>
+        <PremiumPill />
       </View>
 
       <Text style={styles.body}>{takeaway.body}</Text>
@@ -125,20 +120,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     flexShrink: 1,
     paddingRight: spacing.sm,
-  },
-  premiumPill: {
-    backgroundColor: 'rgba(229, 197, 114, 0.12)',
-    borderColor: 'rgba(229, 197, 114, 0.45)',
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  premiumPillText: {
-    color: PREMIUM_GOLD,
-    fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1.2,
   },
   body: {
     color: colors.white,
