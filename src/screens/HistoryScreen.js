@@ -5,6 +5,7 @@ import Svg, { Rect } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 // 14 days of plausible composite wellness scores (0..1)
@@ -221,8 +222,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   heatmapWrap: {
+    // Round 3 #3: unify the heatmap strip container on the elevated material.
+    ...elevatedCard,
     marginTop: spacing.lg,
-    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: spacing.md,
   },
@@ -244,12 +246,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   row: {
-    backgroundColor: colors.surface,
+    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
+    // elevated card material so History rows read like Home cards, not a
+    // to-do list.
+    ...elevatedCard,
     borderRadius: 18,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   rowPressed: {
     opacity: 0.78,

@@ -28,6 +28,7 @@ import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import { StreamerContext } from '../services/streamer/StreamerProvider';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 export default function BleConnectCard() {
@@ -169,13 +170,13 @@ export default function BleConnectCard() {
 
 const styles = StyleSheet.create({
   card: {
+    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
+    // elevated card material. (cardWarn still overrides borderColor to amber.)
+    ...elevatedCard,
     marginTop: spacing.lg,
     paddingVertical: spacing.lg,
     paddingHorizontal: spacing.lg,
     borderRadius: 18,
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   cardWarn: {
     borderColor: colors.amber,

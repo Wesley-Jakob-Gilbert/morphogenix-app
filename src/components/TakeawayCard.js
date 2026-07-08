@@ -3,6 +3,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 // Subtle gold for the PREMIUM pill — distinct from the amber metric accent so it
@@ -100,20 +101,12 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
 
 const styles = StyleSheet.create({
   card: {
-    // Match the metric-tile elevated depth language (lifted surface, hairline
-    // inner border, soft shadow). Premium signal still lives entirely in the
-    // gold pill in the header.
-    backgroundColor: colors.surfaceElevated,
+    // Round 3 #3: canonical elevated card material via the shared helper.
+    // Premium signal still lives entirely in the gold pill in the header.
+    ...elevatedCard,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.ink,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
   },
   header: {
     flexDirection: 'row',

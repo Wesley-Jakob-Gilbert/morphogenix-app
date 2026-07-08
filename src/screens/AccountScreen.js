@@ -15,6 +15,7 @@ import useStream from '../hooks/useStream';
 import { calibrateSupine, getCalibratedAt } from '../services/headPosition';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 function formatCalibratedAt(ts) {
@@ -252,11 +253,11 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   sectionBody: {
-    backgroundColor: colors.surface,
+    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
+    // elevated card material so Account settings groups match Home.
+    ...elevatedCard,
     borderRadius: 18,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   profileRow: {
     flexDirection: 'row',
@@ -381,11 +382,12 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalCard: {
-    backgroundColor: colors.surface,
+    // Round 3 #3: unify the About modal on the elevated card material. Drop the
+    // one-off teal-tinted border in favor of the standard ink hairline so it
+    // reads as the same surface language as every other card.
+    ...elevatedCard,
     borderRadius: 24,
     padding: spacing.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(41,224,200,0.2)',
   },
   modalKicker: {
     color: colors.teal,

@@ -4,6 +4,7 @@ import Svg, { Defs, Polyline, RadialGradient, Rect, Stop } from 'react-native-sv
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 // Round 3 #1: SVG element `id`s must be safe across renderers. Titles like
@@ -78,25 +79,16 @@ function Sparkline({ values, color }) {
 
 const styles = StyleSheet.create({
   tile: {
+    // Round 3 #3: this is the canonical elevated material (surfaceElevated +
+    // ink hairline + soft multi-layer shadow), now sourced from the shared
+    // helper so all card surfaces stay in lockstep.
+    ...elevatedCard,
     flex: 1,
     minHeight: 126,
     borderRadius: 22,
-    // Lifted, elevated surface (lighter than the app floor) per layered
-    // dark-mode depth guidance.
-    backgroundColor: colors.surfaceElevated,
     padding: spacing.lg,
     justifyContent: 'space-between',
     overflow: 'hidden',
-    // Subtle inner hairline border so the card edge reads on a dark base.
-    borderWidth: 1,
-    borderColor: colors.ink,
-    // Soft multi-layer elevation (native). On web the radial sheen + border
-    // carry the depth, so a flat shadow here is harmless.
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
   },
   pressed: {
     opacity: 0.78,

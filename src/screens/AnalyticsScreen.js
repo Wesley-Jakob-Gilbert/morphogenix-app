@@ -11,6 +11,7 @@ import Svg, { Polyline, Rect, Circle } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
 const PERIODS = [
@@ -393,7 +394,11 @@ const styles = StyleSheet.create({
     color: colors.teal,
   },
   section: {
-    backgroundColor: colors.surface,
+    // Round 3 #3: was flat `colors.surface` (the "before" material). Unify on
+    // the elevated card so it matches Home. KEEP the 3px accent left border
+    // (it's the section's identity) — elevatedCard sets a full 1px ink border,
+    // then we override the left edge to the accent color + width below.
+    ...elevatedCard,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
