@@ -1,5 +1,9 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face comes from the AppText wrapper (replaces the
+// removed Text.defaultProps mutation). Explicit style families still override.
+import Text from './AppText';
 import Animated, {
   Easing,
   useAnimatedStyle,

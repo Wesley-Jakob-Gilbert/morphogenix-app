@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
@@ -8,6 +8,8 @@ import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 import { haptics } from '../utils/haptics';
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from '../components/AppText';
 
 // 14 days of plausible composite wellness scores (0..1)
 const HEATMAP = [

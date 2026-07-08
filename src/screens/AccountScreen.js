@@ -6,9 +6,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import useStream from '../hooks/useStream';
