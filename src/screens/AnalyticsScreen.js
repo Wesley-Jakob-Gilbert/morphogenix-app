@@ -7,7 +7,25 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Polyline, Rect, Circle } from 'react-native-svg';
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedProps,
+  useReducedMotion,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import Svg, {
+  Circle,
+  Defs,
+  Line,
+  LinearGradient,
+  Path,
+  Polyline,
+  RadialGradient,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
@@ -176,11 +194,21 @@ const DATA = {
 };
 
 const SECTION_META = [
-  { id: 'posture', title: 'Posture', accent: colors.teal },
+  // `target` (in the same 0..100-ish units as `spark`) draws a faint 1px guide
+  // line where a meaningful goal exists (Round 3 #7). Posture goal is 80;
+  // nasal ~90. Pressure/Clench have no single "target" line so it's omitted.
+  { id: 'posture', title: 'Posture', accent: colors.teal, target: 80 },
   { id: 'pressure', title: 'Pressure', accent: colors.amber },
   { id: 'clench', title: 'Clench', accent: colors.violet },
-  { id: 'nasal', title: 'Nasal', accent: colors.teal },
+  { id: 'nasal', title: 'Nasal', accent: colors.teal, target: 90 },
 ];
+
+// Draw-on timing (Round 3 #7). Restrained per Wes decision #5 — chart draw-on
+// is the ONLY chart motion. ~600ms, eased out.
+export const CHART_DRAW_MS = 600;
+
+const AnimatedPolyline = Animated.createAnimatedComponent(Polyline);
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
 
 export default function AnalyticsScreen({ route }) {
   const anchor = route?.params?.anchor;
@@ -270,9 +298,14 @@ function AnalyticsSection({ meta, data, chartKind }) {
 
       <View style={styles.chartWrap}>
         {chartKind === 'bar' ? (
-          <BarChart values={data.spark} color={meta.accent} />
+          <BarChart values={data.spark} color={meta.accent} slug={meta.id} />
         ) : (
-          <LineChart values={data.spark} color={meta.accent} />
+          <LineChart
+            values={data.spark}
+            color={meta.accent}
+            slug={meta.id}
+            target={meta.target}
+          />
         )}
       </View>
 
@@ -290,69 +323,248 @@ function AnalyticsSection({ meta, data, chartKind }) {
   );
 }
 
-function LineChart({ values, color }) {
-  const width = 320;
-  const height = 80;
-  const padX = 6;
-  const padY = 8;
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+// --- Pure chart geometry (Round 3 #7) --------------------------------------
+// Kept as exported pure functions so the layout math is unit-testable without
+// rendering SVG or reanimated.
+
+const CHART_W = 320;
+const CHART_H = 80;
+const CHART_PAD_X = 6;
+const CHART_PAD_Y = 8;
+
+// Map a data series into { points:[{x,y}], min, max } in chart space.
+export function chartPoints(values, width = CHART_W, height = CHART_H, padX = CHART_PAD_X, padY = CHART_PAD_Y) {
+  const arr = Array.isArray(values) && values.length ? values : [0];
+  const max = Math.max(...arr);
+  const min = Math.min(...arr);
   const range = max - min || 1;
-  const stepX = (width - padX * 2) / (values.length - 1);
-  const points = values
-    .map((v, i) => {
-      const x = padX + i * stepX;
-      const y = height - padY - ((v - min) / range) * (height - padY * 2);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(' ');
-  const lastY =
-    height - padY - ((values[values.length - 1] - min) / range) * (height - padY * 2);
-  const lastX = padX + (values.length - 1) * stepX;
+  const denom = arr.length > 1 ? arr.length - 1 : 1;
+  const stepX = (width - padX * 2) / denom;
+  const pts = arr.map((v, i) => ({
+    x: padX + i * stepX,
+    y: height - padY - ((v - min) / range) * (height - padY * 2),
+  }));
+  return { points: pts, min, max, range };
+}
+
+// Points -> "x,y x,y ..." polyline string.
+export function polylineString(points) {
+  return points.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+}
+
+// Closed area path (line -> down to baseline -> back) for the gradient fill.
+export function areaPathString(points, height = CHART_H, padY = CHART_PAD_Y) {
+  if (!points.length) return '';
+  const baseY = height - padY;
+  const head = `M ${points[0].x.toFixed(1)} ${points[0].y.toFixed(1)}`;
+  const line = points.slice(1).map((p) => `L ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  const last = points[points.length - 1];
+  const close = `L ${last.x.toFixed(1)} ${baseY} L ${points[0].x.toFixed(1)} ${baseY} Z`;
+  return `${head} ${line} ${close}`;
+}
+
+// The y (chart space) for a `target` value given the series min/max window.
+export function targetY(target, min, max, height = CHART_H, padY = CHART_PAD_Y) {
+  if (typeof target !== 'number') return null;
+  const range = max - min || 1;
+  const y = height - padY - ((target - min) / range) * (height - padY * 2);
+  // Only show it if it lands inside the plotted band (clamp guard).
+  if (y < padY || y > height - padY) return null;
+  return y;
+}
+
+// Total polyline length estimate (sum of segment lengths) — used to size the
+// draw-on strokeDasharray reveal.
+export function polylineLength(points) {
+  let len = 0;
+  for (let i = 1; i < points.length; i += 1) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    len += Math.sqrt(dx * dx + dy * dy);
+  }
+  return len;
+}
+
+function LineChart({ values, color, slug = 'line', target }) {
+  const { points, min, max } = chartPoints(values);
+  const pointsStr = polylineString(points);
+  const areaStr = areaPathString(points);
+  const totalLen = Math.max(1, polylineLength(points));
+  const last = points[points.length - 1];
+  const baseY = CHART_H - CHART_PAD_Y;
+  const tY = targetY(target, min, max);
+
+  const fillId = `area-${slug}`;
+  const haloId = `halo-${slug}`;
+
+  // Draw-on reveal (Round 3 #7 / Wes decision #5 — restrained, chart-only).
+  // progress 0..1 drives a strokeDashoffset from full length -> 0. Reduce-motion
+  // snaps to fully drawn.
+  const reduceMotion = useReducedMotion();
+  const progress = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(progress);
+      progress.value = 1;
+      return undefined;
+    }
+    cancelAnimation(progress);
+    progress.value = 0;
+    progress.value = withTiming(1, {
+      duration: CHART_DRAW_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+    return () => cancelAnimation(progress);
+    // Redraw when the plotted series changes.
+  }, [reduceMotion, progress, pointsStr]);
+
+  const lineProps = useAnimatedProps(() => ({
+    strokeDashoffset: totalLen * (1 - progress.value),
+  }), [totalLen]);
+
   return (
-    <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-      <Polyline
-        points={points}
+    <Svg width="100%" height={CHART_H} viewBox={`0 0 ${CHART_W} ${CHART_H}`}>
+      <Defs>
+        {/* teal/accent -> transparent vertical area fill */}
+        <LinearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.28" />
+          <Stop offset="1" stopColor={color} stopOpacity="0" />
+        </LinearGradient>
+        {/* soft halo behind the end dot */}
+        <RadialGradient id={haloId} cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={color} stopOpacity="0.45" />
+          <Stop offset="1" stopColor={color} stopOpacity="0" />
+        </RadialGradient>
+      </Defs>
+
+      {/* Area fill under the line */}
+      <Path d={areaStr} fill={`url(#${fillId})`} stroke="none" />
+
+      {/* Faint baseline at the series min */}
+      <Line
+        x1={CHART_PAD_X}
+        y1={baseY}
+        x2={CHART_W - CHART_PAD_X}
+        y2={baseY}
+        stroke={colors.white}
+        strokeWidth="1"
+        opacity="0.08"
+      />
+
+      {/* 1px target guide where relevant (e.g. posture 80) */}
+      {tY != null ? (
+        <Line
+          x1={CHART_PAD_X}
+          y1={tY}
+          x2={CHART_W - CHART_PAD_X}
+          y2={tY}
+          stroke={colors.white}
+          strokeWidth="1"
+          strokeDasharray="3 4"
+          opacity="0.22"
+        />
+      ) : null}
+
+      {/* The trend line, revealed left-to-right */}
+      <AnimatedPolyline
+        points={pointsStr}
         fill="none"
         stroke={color}
-        strokeWidth="2.5"
+        strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
-        opacity="0.9"
+        strokeDasharray={totalLen}
+        animatedProps={lineProps}
       />
-      <Circle cx={lastX} cy={lastY} r="3.5" fill={color} />
+
+      {/* End dot + halo */}
+      <Circle cx={last.x} cy={last.y} r="7" fill={`url(#${haloId})`} />
+      <Circle cx={last.x} cy={last.y} r="3" fill={color} />
     </Svg>
   );
 }
 
-function BarChart({ values, color }) {
-  const width = 320;
-  const height = 80;
-  const padX = 6;
-  const padY = 8;
-  const max = Math.max(...values);
+function BarChart({ values, color, slug = 'bar' }) {
+  const arr = Array.isArray(values) && values.length ? values : [0];
+  const max = Math.max(...arr);
   const barGap = 4;
-  const barWidth = (width - padX * 2 - (values.length - 1) * barGap) / values.length;
+  const barWidth = (CHART_W - CHART_PAD_X * 2 - (arr.length - 1) * barGap) / arr.length;
+  const baseY = CHART_H - CHART_PAD_Y;
+  const fillId = `bararea-${slug}`;
+
+  // Draw-on: bars grow up from the baseline together. Reduce-motion snaps full.
+  const reduceMotion = useReducedMotion();
+  const progress = useSharedValue(reduceMotion ? 1 : 0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      cancelAnimation(progress);
+      progress.value = 1;
+      return undefined;
+    }
+    cancelAnimation(progress);
+    progress.value = 0;
+    progress.value = withTiming(1, {
+      duration: CHART_DRAW_MS,
+      easing: Easing.out(Easing.cubic),
+    });
+    return () => cancelAnimation(progress);
+  }, [reduceMotion, progress, arr.length, max]);
+
   return (
-    <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-      {values.map((v, i) => {
-        const h = ((v / max) * (height - padY * 2)) || 2;
-        const x = padX + i * (barWidth + barGap);
-        const y = height - padY - h;
+    <Svg width="100%" height={CHART_H} viewBox={`0 0 ${CHART_W} ${CHART_H}`}>
+      <Defs>
+        <LinearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={color} stopOpacity="0.95" />
+          <Stop offset="1" stopColor={color} stopOpacity="0.45" />
+        </LinearGradient>
+      </Defs>
+
+      {/* Faint baseline */}
+      <Line
+        x1={CHART_PAD_X}
+        y1={baseY}
+        x2={CHART_W - CHART_PAD_X}
+        y2={baseY}
+        stroke={colors.white}
+        strokeWidth="1"
+        opacity="0.08"
+      />
+
+      {arr.map((v, i) => {
+        const fullH = ((v / (max || 1)) * (CHART_H - CHART_PAD_Y * 2)) || 2;
+        const x = CHART_PAD_X + i * (barWidth + barGap);
         return (
-          <Rect
+          <AnimatedBar
             key={i}
             x={x}
-            y={y}
+            baseY={baseY}
             width={barWidth}
-            height={h}
-            rx={2}
-            fill={color}
-            opacity={0.85}
+            fullHeight={fullH}
+            fill={`url(#${fillId})`}
+            progress={progress}
           />
         );
       })}
     </Svg>
+  );
+}
+
+// A single bar that grows from the baseline as `progress` 0..1 advances.
+function AnimatedBar({ x, baseY, width, fullHeight, fill, progress }) {
+  const barProps = useAnimatedProps(() => {
+    const h = fullHeight * progress.value;
+    return { y: baseY - h, height: h };
+  }, [fullHeight, baseY]);
+  return (
+    <AnimatedRect
+      x={x}
+      width={width}
+      rx={2}
+      fill={fill}
+      animatedProps={barProps}
+    />
   );
 }
 
