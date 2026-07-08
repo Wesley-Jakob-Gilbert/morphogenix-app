@@ -199,7 +199,10 @@ const styles = StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    // Round 3 #1: was `borderRadius: 4` on an 8x8 box — a rounded square, not a
+    // circle. Every other status dot in the app uses radius >= size. Use 999
+    // (Wes decision) so it is unambiguously round at any size.
+    borderRadius: 999,
     marginRight: spacing.sm,
   },
   positionLabel: {

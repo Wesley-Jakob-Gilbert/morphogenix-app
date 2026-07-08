@@ -6,7 +6,20 @@ import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 
+// Round 3 #1: SVG element `id`s must be safe across renderers. Titles like
+// "Palatal Pressure" previously produced ids with spaces (`sheen-Palatal
+// Pressure`), which is fragile. Slugify to lowercase alphanumerics + dashes and
+// guarantee a non-empty fallback so `url(#...)` always resolves.
+export function slugify(str) {
+  const slug = String(str == null ? '' : str)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'tile';
+}
+
 export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline = [10, 18, 13, 24, 20, 30] }) {
+  const sheenId = `sheen-${slugify(title)}`;
   return (
     <Pressable
       accessibilityRole="button"
@@ -20,12 +33,12 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Svg width="100%" height="100%">
           <Defs>
-            <RadialGradient id={`sheen-${title}`} cx="18%" cy="0%" r="90%">
+            <RadialGradient id={sheenId} cx="18%" cy="0%" r="90%">
               <Stop offset="0" stopColor={accent} stopOpacity="0.10" />
               <Stop offset="1" stopColor={accent} stopOpacity="0" />
             </RadialGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#sheen-${title})`} />
+          <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#${sheenId})`} />
         </Svg>
       </View>
 
