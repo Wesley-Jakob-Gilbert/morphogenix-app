@@ -10,6 +10,7 @@ import ScoreRing, {
   ANIM_DURATION_MS,
 } from '../ScoreRing';
 import { haptics } from '../../utils/haptics';
+import colors from '../../theme/colors';
 
 // --- Reanimated mock (Roadmap V2 #2 animation gating) -----------------------
 //
@@ -230,5 +231,73 @@ describe('ScoreRing animation gating (rendered)', () => {
 
   it('uses the expected ~900ms fill duration', () => {
     expect(ANIM_DURATION_MS).toBe(900);
+  });
+});
+
+// --- Solid state color (Round 3 #6, Wes decision #6) ------------------------
+//
+// The arc must render in ONE solid color derived from the value's state
+// (teal = optimal, amber = attention, stateRed = improve), never the old
+// teal->amber->violet gradient. We locate the progress Circle by its
+// strokeLinecap="round" (the background track has no linecap) and assert its
+// `stroke`. Reduce-motion is ON here so the render is a stable snapshot.
+describe('ScoreRing solid state color', () => {
+  beforeEach(() => {
+    reduceMotionHolder.value = true;
+  });
+
+  function arcStroke(tree) {
+    const Circle = require('react-native-svg').Circle;
+    const arc = tree.root
+      .findAllByType(Circle)
+      .find((c) => c.props.strokeLinecap === 'round');
+    return arc && arc.props.stroke;
+  }
+
+  it('paints the arc teal for an optimal posture (>80)', () => {
+    let tree;
+    act(() => {
+      tree = TestRenderer.create(<ScoreRing value={92} label="Posture" />);
+    });
+    expect(arcStroke(tree)).toBe(colors.teal);
+    act(() => tree.unmount());
+  });
+
+  it('paints the arc amber for an attention posture (60..80)', () => {
+    let tree;
+    act(() => {
+      tree = TestRenderer.create(<ScoreRing value={70} label="Posture" />);
+    });
+    expect(arcStroke(tree)).toBe(colors.amber);
+    act(() => tree.unmount());
+  });
+
+  it('paints the arc stateRed for a poor posture (<60)', () => {
+    let tree;
+    act(() => {
+      tree = TestRenderer.create(<ScoreRing value={40} label="Posture" />);
+    });
+    expect(arcStroke(tree)).toBe(colors.stateRed);
+    act(() => tree.unmount());
+  });
+
+  it('honors an explicit stateColor override', () => {
+    let tree;
+    act(() => {
+      tree = TestRenderer.create(
+        <ScoreRing value={40} label="Posture" stateColor={colors.teal} />
+      );
+    });
+    expect(arcStroke(tree)).toBe(colors.teal);
+    act(() => tree.unmount());
+  });
+
+  it('never renders the old gradient url reference', () => {
+    let tree;
+    act(() => {
+      tree = TestRenderer.create(<ScoreRing value={92} label="Posture" />);
+    });
+    expect(arcStroke(tree)).not.toMatch(/url\(/);
+    act(() => tree.unmount());
   });
 });

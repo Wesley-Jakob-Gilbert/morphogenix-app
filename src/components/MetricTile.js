@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import colors from '../theme/colors';
+import { getMetricColor } from '../theme/metricState';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
@@ -23,7 +24,22 @@ export function slugify(str) {
 // Round 3 #5: `sparkline` is now OPTIONAL. A tile only draws a sparkline when it
 // has a real underlying time-series (>= 2 samples); tiles without real data omit
 // the prop entirely rather than showing a fake, frozen chart. No default array.
-export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline }) {
+// Round 3 #6: color is now STATE, not decoration. When `title` names a known
+// metric (Posture / Pressure / Clench / Nasal), the tile's accent is derived
+// from the value via the locked thresholds (teal/amber/stateRed). The `accent`
+// prop is only a fallback for unknown metrics; `stateColorEnabled={false}` opts
+// a tile out and keeps the passed accent (used by tests / non-metric tiles).
+export default function MetricTile({
+  title,
+  value,
+  unit,
+  accent = colors.teal,
+  onPress,
+  sparkline,
+  stateColorEnabled = true,
+}) {
+  const stateColor = stateColorEnabled ? getMetricColor(title, value) : null;
+  const resolvedAccent = stateColor || accent;
   const hasSparkline = Array.isArray(sparkline) && sparkline.length >= 2;
   const sheenId = `sheen-${slugify(title)}`;
   // Round 3 #4: the tile is the primary gesture on Home and was silent. Fire a
@@ -47,8 +63,8 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
         <Svg width="100%" height="100%">
           <Defs>
             <RadialGradient id={sheenId} cx="18%" cy="0%" r="90%">
-              <Stop offset="0" stopColor={accent} stopOpacity="0.10" />
-              <Stop offset="1" stopColor={accent} stopOpacity="0" />
+              <Stop offset="0" stopColor={resolvedAccent} stopOpacity="0.10" />
+              <Stop offset="1" stopColor={resolvedAccent} stopOpacity="0" />
             </RadialGradient>
           </Defs>
           <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#${sheenId})`} />
@@ -57,13 +73,13 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
 
       <View style={styles.topRow}>
         <Text style={styles.title}>{title}</Text>
-        <View style={[styles.accentDot, { backgroundColor: accent }]} />
+        <View style={[styles.accentDot, { backgroundColor: resolvedAccent }]} />
       </View>
       <View style={styles.valueRow}>
         <Text style={styles.value}>{value}</Text>
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
-      {hasSparkline ? <Sparkline values={sparkline} color={accent} /> : null}
+      {hasSparkline ? <Sparkline values={sparkline} color={resolvedAccent} /> : null}
     </Pressable>
   );
 }
