@@ -20,7 +20,11 @@ export function slugify(str) {
   return slug || 'tile';
 }
 
-export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline = [10, 18, 13, 24, 20, 30] }) {
+// Round 3 #5: `sparkline` is now OPTIONAL. A tile only draws a sparkline when it
+// has a real underlying time-series (>= 2 samples); tiles without real data omit
+// the prop entirely rather than showing a fake, frozen chart. No default array.
+export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline }) {
+  const hasSparkline = Array.isArray(sparkline) && sparkline.length >= 2;
   const sheenId = `sheen-${slugify(title)}`;
   // Round 3 #4: the tile is the primary gesture on Home and was silent. Fire a
   // selection tick on press-in (not on release) so the feedback lands the
@@ -59,7 +63,7 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
         <Text style={styles.value}>{value}</Text>
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
-      <Sparkline values={sparkline} color={accent} />
+      {hasSparkline ? <Sparkline values={sparkline} color={accent} /> : null}
     </Pressable>
   );
 }
