@@ -1,51 +1,151 @@
-# MorphoGenix App MVP
+# MorphoGenix
 
-React Native + Expo companion app for MorphoGenix, built in JavaScript only.
+**Intraoral biometric wearable + companion app for palatal pressure and head-position sensing.**
 
-## Run
+MorphoGenix pairs a custom intraoral sensor with a React Native app that visualizes tongue/palatal pressure and head orientation in real time. This repository holds the mobile app and the device firmware.
+
+<!-- add gif at ./docs/demo.gif -->
+
+![Expo SDK 54](https://img.shields.io/badge/Expo%20SDK-54-000020)
+![React Native 0.81](https://img.shields.io/badge/React%20Native-0.81-61DAFB)
+![Language](https://img.shields.io/badge/JavaScript-ES2022-f7df1e)
+![Tests](https://img.shields.io/badge/tests-175%20passing-2ea44f)
+![Bundle](https://img.shields.io/badge/bundle-ai.morphogenix.app-0B1220)
+![TestFlight](https://img.shields.io/badge/TestFlight-coming%20soon-8A6CFF)
+
+---
+
+## What it is
+
+MorphoGenix is an intraoral biometric wearable and its companion app. The device is a custom-fit upper-arch appliance carrying a sealed force-sensitive-resistor (FSR) array across the palate and molars, plus an on-board 6-axis IMU for head/sleep-position tracking. Sensor data streams over Bluetooth Low Energy (Nordic UART Service) to the app, which renders a live palatal-pressure heatmap, a 0–100 posture score, clench-event detection, and session history. The near-term research focus is bone-remodeling, sleep-posture, and bruxism data collection.
+
+## Screenshots
+
+<img src="./docs/screenshots/home.png" width="240" alt="Home" />
+<img src="./docs/screenshots/analytics.png" width="240" alt="Analytics" />
+<img src="./docs/screenshots/history.png" width="240" alt="History" />
+
+## Architecture
+
+The firmware samples four FSR channels and the IMU, packs them into a fixed-size 22-byte binary frame, and notifies the app at 10 Hz over the Nordic UART Service. A transport-agnostic protocol module parses and shapes each frame identically across platforms; a thin transport adapter handles the actual BLE link. Session state and settings persist locally on device.
+
+```
+┌──────────────────────────────┐      ┌──────────────────────────┐      ┌──────────────┐
+│  Firmware                     │      │  Companion App           │      │  Cloud       │
+│  Seeed XIAO nRF52840 Sense    │ BLE  │  React Native + Expo     │      │  (future)    │
+│  4× FSR + LSM6DS3TR-C IMU     │─────▶│  binary-protocol parser  │─────▶│  sync /      │
+│  22-byte binary frame @ 10 Hz │ NUS  │  local persistence       │local │  export      │
+└──────────────────────────────┘      └──────────────────────────┘      └──────────────┘
+```
+
+## Tech stack
+
+**Mobile**
+- React Native `0.81` on Expo SDK `54` (`expo-router`)
+- `react-native-reanimated` 4 + `react-native-worklets` (arc fills, count-up, chart draw-on)
+- `@shopify/react-native-skia` and `react-native-svg` for custom visuals
+- `victory-native` for charts
+- `expo-haptics` for tactile feedback
+- `zustand` state, persisted via `@react-native-async-storage/async-storage`
+- `expo-sqlite` session persistence via a typed `sessionStore`
+- `@expo-google-fonts/inter` for the Inter type system
+
+**BLE transport**
+- Platform-routed `BleStreamer` with three adapters sharing one parser:
+  - `react-native-ble-plx` native adapter for the iOS/Android dev client
+  - Web Bluetooth adapter for the desktop bench build
+  - Deterministic mock adapter for unit tests
+- `expo-dev-client` + `expo-build-properties` for custom native builds
+- Bundle identifier `ai.morphogenix.app`, iOS deployment target 15.1
+
+**Firmware**
+- C++ (Arduino IDE) on the Seeed XIAO nRF52840 **Sense**
+- LSM6DS3TR-C 6-axis IMU at I²C address `0x6A` on the nRF52840's secondary bus (Wire1, internal pins P0.15/P0.14), ±2 g / 26 Hz
+- 4× FSR on ADC pins A0–A3, per-channel 10k pulldowns, baseline calibration
+- Nordic UART Service (Bluefruit `BLEUart`), custom 22-byte binary v2 protocol at 10 Hz
+
+**Backend / infra**
+- No app backend yet; the marketing site + waitlist runs on Fly.io ([landing repo](https://github.com/Wesley-Jakob-Gilbert/MorphoGenix-Landing-Page))
+- EAS for builds, GitHub Actions for CI, Notion for project docs
+
+## Getting started
+
+Requires Node 18+ and the EAS CLI. The app uses native modules, so a development build (not Expo Go) is needed for full BLE functionality.
 
 ```bash
-npm install
+# Install dependencies
+npm install --legacy-peer-deps
+
+# Authenticate with Expo
+eas login
+
+# Create a development build
+eas build --profile development
+```
+
+Install the resulting build on a device via the QR code EAS provides, then start the dev server:
+
+```bash
 npm start
 ```
 
-Then open in Expo Go or run:
+Demo mode is on by default and replays a captured 10 Hz stream, so the UI is fully explorable without hardware.
+
+## Testing
 
 ```bash
-npm run ios
-npm run android
+npm test
 ```
 
-## Development
+The suite currently runs **136 tests across 10 suites** (Jest + `jest-expo`), covering the binary protocol parser, head-position math, metric-state color logic, morphoday utilities, haptics, and key components.
 
-Expo Go runs the app in **demo mode** (replayed data). Real BLE streaming from
-the XIAO nRF52840 needs a **native dev client** because `react-native-ble-plx`
-is a native module:
+## Repository layout
 
-```bash
-npm install --legacy-peer-deps
-npx expo start --dev-client
+```
+morphogenix-app/
+├── src/
+│   ├── components/      Reusable UI (ScoreRing, cards, palate heatmap)
+│   ├── screens/         Home, Analytics, History, Account
+│   ├── services/        streamer/ (binary protocol, BLE adapters), headPosition
+│   ├── store/           zustand stores (settings)
+│   ├── theme/           colors, typography, spacing, metric-state palette
+│   ├── hooks/  data/  navigation/  utils/
+├── firmware/            Arduino sketches (phase2 → phase3 binary + IMU)
+├── hardware/            CAD, scans, print, and reference assets
+├── docs/                Roadmaps, UI notes, resume bullets
+├── assets/              Icons, splash, demo stream
+└── e2e/                 End-to-end scaffolding
 ```
 
-Building and installing that dev client on a device, plus TestFlight, is
-documented step-by-step in **[docs/DEV_BUILD.md](docs/DEV_BUILD.md)**
-(`eas login` → `eas init` → `eas device:create` →
-`eas build --profile development --platform ios`).
+## Design system
 
-- Bundle identifier: `ai.morphogenix.app`
-- iOS deployment target: 15.1
-- BLE device name: `MorphoGenixSOD` (Nordic UART Service)
-- The streamer auto-selects a transport per platform: native (ble-plx) on
-  iOS/Android, Web Bluetooth on the web bench build, and a synthetic mock in
-  the simulator/tests.
+The app uses an Oura / Apple Watch-inspired dark theme with a locked palette and the Inter type family. Metric colors are stateful — teal for optimal, amber for attention, with a state-only red reserved for genuine alerts and a subtle gold reserved for premium affordances. Motion (arc fills, count-up numbers, chart draw-on) respects the system reduce-motion setting and snaps to final state when it is enabled.
 
-## MVP status
+| Role | Token | Value |
+|---|---|---|
+| Background | navy | `#0B1220` |
+| Optimal | teal | `#29E0C8` |
+| Attention | amber | `#F5B343` |
+| Accent | violet | `#8A6CFF` |
+| Alert (state only) | red | `#FF6B6B` |
+| Premium (accent only) | gold | `#E5C572` |
 
-Completed through Phase D:
+## Roadmap
 
-- Foundation: Expo app, bottom tabs, theme constants, stub tabs
-- Data: morphoday utilities, streamer contract, DemoStreamer, BLE stub, settings store, hooks
-- Palate hero: 16-zone SVG palate heatmap, live pulse, tappable color-scale legend
-- Home: header, demo pill, wear-time caption, 2x2 metric grid, pull-to-refresh
+| Now | Next | Later |
+|---|---|---|
+| TestFlight prep | App Store v1.0 | HealthKit integration |
+| Native BLE dev client | Session detail views | Cloud sync |
+| On-device persistence | Subscription tier | Multi-device support |
 
-Demo Mode is on by default and replays `assets/demo-stream.json` at 10 Hz.
+## Contributing
+
+This is a solo project. Feedback and bug reports are welcome via GitHub issues.
+
+## License
+
+Proprietary — All Rights Reserved. (License not yet finalized; see Contact.)
+
+## Contact
+
+Wes Gilbert · [wes@morphogenix.ai](mailto:wes@morphogenix.ai) · [morphogenix.ai](https://morphogenix.ai)
