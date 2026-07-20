@@ -36,11 +36,15 @@ const typography = {
     display: '900', // heaviest weight for hero/score display numbers (Oura-style)
   },
   sizes: {
+    micro: 10, // ScoreRing sub-label (was a magic `fontSize: 10`) — Round 3 #8
     tiny: 11,
     caption: 12,
     body: 15,
     callout: 17,
     title: 24,
+    // Analytics section hero numeral (was a magic `fontSize: 38`) — Round 3 #8.
+    // Sits between `hero` (32) and `display` (44).
+    heroNumber: 38,
     hero: 32,
     display: 44, // large display number for score rings / hero metrics
   },
@@ -49,6 +53,7 @@ const typography = {
     body: 21,
     callout: 23,
     title: 30,
+    heroNumber: 44, // matches sizes.heroNumber (38) — Round 3 #8
     hero: 38,
     display: 48,
   },

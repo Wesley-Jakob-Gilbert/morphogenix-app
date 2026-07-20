@@ -1,17 +1,62 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from './AppText';
 import Svg, { Defs, Polyline, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import colors from '../theme/colors';
+import { getMetricColor } from '../theme/metricState';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
 
-export default function MetricTile({ title, value, unit, accent = colors.teal, onPress, sparkline = [10, 18, 13, 24, 20, 30] }) {
+// Round 3 #1: SVG element `id`s must be safe across renderers. Titles like
+// "Palatal Pressure" previously produced ids with spaces (`sheen-Palatal
+// Pressure`), which is fragile. Slugify to lowercase alphanumerics + dashes and
+// guarantee a non-empty fallback so `url(#...)` always resolves.
+export function slugify(str) {
+  const slug = String(str == null ? '' : str)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return slug || 'tile';
+}
+
+// Round 3 #5: `sparkline` is now OPTIONAL. A tile only draws a sparkline when it
+// has a real underlying time-series (>= 2 samples); tiles without real data omit
+// the prop entirely rather than showing a fake, frozen chart. No default array.
+// Round 3 #6: color is now STATE, not decoration. When `title` names a known
+// metric (Posture / Pressure / Clench / Nasal), the tile's accent is derived
+// from the value via the locked thresholds (teal/amber/stateRed). The `accent`
+// prop is only a fallback for unknown metrics; `stateColorEnabled={false}` opts
+// a tile out and keeps the passed accent (used by tests / non-metric tiles).
+export default function MetricTile({
+  title,
+  value,
+  unit,
+  accent = colors.teal,
+  onPress,
+  sparkline,
+  stateColorEnabled = true,
+}) {
+  const stateColor = stateColorEnabled ? getMetricColor(title, value) : null;
+  const resolvedAccent = stateColor || accent;
+  const hasSparkline = Array.isArray(sparkline) && sparkline.length >= 2;
+  const sheenId = `sheen-${slugify(title)}`;
+  // Round 3 #4: the tile is the primary gesture on Home and was silent. Fire a
+  // selection tick on press-in (not on release) so the feedback lands the
+  // instant the finger touches, matching Apple/Oura tactile timing.
+  const onPressIn = () => {
+    haptics.selection();
+  };
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`Open ${title} analytics`}
       onPress={onPress}
+      onPressIn={onPressIn}
       style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
       {/* Faint radial sheen tinted by the tile accent — gives the flat surface
@@ -20,24 +65,24 @@ export default function MetricTile({ title, value, unit, accent = colors.teal, o
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         <Svg width="100%" height="100%">
           <Defs>
-            <RadialGradient id={`sheen-${title}`} cx="18%" cy="0%" r="90%">
-              <Stop offset="0" stopColor={accent} stopOpacity="0.10" />
-              <Stop offset="1" stopColor={accent} stopOpacity="0" />
+            <RadialGradient id={sheenId} cx="18%" cy="0%" r="90%">
+              <Stop offset="0" stopColor={resolvedAccent} stopOpacity="0.10" />
+              <Stop offset="1" stopColor={resolvedAccent} stopOpacity="0" />
             </RadialGradient>
           </Defs>
-          <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#sheen-${title})`} />
+          <Rect x="0" y="0" width="100%" height="100%" rx="22" fill={`url(#${sheenId})`} />
         </Svg>
       </View>
 
       <View style={styles.topRow}>
         <Text style={styles.title}>{title}</Text>
-        <View style={[styles.accentDot, { backgroundColor: accent }]} />
+        <View style={[styles.accentDot, { backgroundColor: resolvedAccent }]} />
       </View>
       <View style={styles.valueRow}>
         <Text style={styles.value}>{value}</Text>
         {unit ? <Text style={styles.unit}>{unit}</Text> : null}
       </View>
-      <Sparkline values={sparkline} color={accent} />
+      {hasSparkline ? <Sparkline values={sparkline} color={resolvedAccent} /> : null}
     </Pressable>
   );
 }
@@ -65,25 +110,16 @@ function Sparkline({ values, color }) {
 
 const styles = StyleSheet.create({
   tile: {
+    // Round 3 #3: this is the canonical elevated material (surfaceElevated +
+    // ink hairline + soft multi-layer shadow), now sourced from the shared
+    // helper so all card surfaces stay in lockstep.
+    ...elevatedCard,
     flex: 1,
     minHeight: 126,
     borderRadius: 22,
-    // Lifted, elevated surface (lighter than the app floor) per layered
-    // dark-mode depth guidance.
-    backgroundColor: colors.surfaceElevated,
     padding: spacing.lg,
     justifyContent: 'space-between',
     overflow: 'hidden',
-    // Subtle inner hairline border so the card edge reads on a dark base.
-    borderWidth: 1,
-    borderColor: colors.ink,
-    // Soft multi-layer elevation (native). On web the radial sheen + border
-    // carry the depth, so a flat shadow here is harmless.
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
   },
   pressed: {
     opacity: 0.78,
@@ -113,9 +149,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 28,
     lineHeight: 32,
-    // Big numeral → Inter Black display face (Roadmap V2 #1).
+    // Big numeral → Inter Black display face (Roadmap V2 #1). The display face
+    // carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.familyDisplay,
-    fontWeight: typography.weights.display,
     letterSpacing: -0.5,
   },
   unit: {
@@ -123,7 +159,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.bold,
     marginLeft: spacing.xs,
-    marginBottom: 3,
+    marginBottom: spacing.xxs,
   },
   sparkline: {
     marginTop: spacing.md,

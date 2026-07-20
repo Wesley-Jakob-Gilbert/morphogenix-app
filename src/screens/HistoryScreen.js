@@ -1,11 +1,15 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Rect } from 'react-native-svg';
+import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
+import { haptics } from '../utils/haptics';
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from '../components/AppText';
 
 // 14 days of plausible composite wellness scores (0..1)
 const HEATMAP = [
@@ -13,12 +17,16 @@ const HEATMAP = [
   0.81, 0.79, 0.84, 0.82, 0.86, 0.88, 0.91,
 ];
 
-// Newest first
+// Newest first.
+// Round 3 #10 (Wes decision on daySub): the label pattern is now uniform.
+// The most-recent day carries `isToday` and shows "Today"; every other row
+// shows its calendar date (`date`) as the single primary label with no
+// sub-line. No mixed "Yesterday" / "Weekend" strings.
 const MORPHODAYS = [
   {
     id: 'today',
-    label: 'Today',
-    sub: 'Mon Apr 28',
+    isToday: true,
+    date: 'Mon Apr 28',
     posture: 87,
     pressure: '0.61 N',
     clench: 3,
@@ -27,8 +35,7 @@ const MORPHODAYS = [
   },
   {
     id: 'yesterday',
-    label: 'Yesterday',
-    sub: 'Sun Apr 27',
+    date: 'Sun Apr 27',
     posture: 84,
     pressure: '0.65 N',
     clench: 4,
@@ -37,8 +44,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-2',
-    label: 'Sat Apr 26',
-    sub: 'Weekend',
+    date: 'Sat Apr 26',
     posture: 82,
     pressure: '0.63 N',
     clench: 5,
@@ -47,8 +53,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-3',
-    label: 'Fri Apr 25',
-    sub: '',
+    date: 'Fri Apr 25',
     posture: 86,
     pressure: '0.64 N',
     clench: 4,
@@ -57,8 +62,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-4',
-    label: 'Thu Apr 24',
-    sub: '',
+    date: 'Thu Apr 24',
     posture: 79,
     pressure: '0.71 N',
     clench: 6,
@@ -67,8 +71,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-5',
-    label: 'Wed Apr 23',
-    sub: '',
+    date: 'Wed Apr 23',
     posture: 89,
     pressure: '0.58 N',
     clench: 3,
@@ -77,8 +80,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-6',
-    label: 'Tue Apr 22',
-    sub: '',
+    date: 'Tue Apr 22',
     posture: 81,
     pressure: '0.69 N',
     clench: 5,
@@ -87,8 +89,7 @@ const MORPHODAYS = [
   },
   {
     id: 'd-7',
-    label: 'Mon Apr 21',
-    sub: '',
+    date: 'Mon Apr 21',
     posture: 78,
     pressure: '0.72 N',
     clench: 6,
@@ -96,6 +97,40 @@ const MORPHODAYS = [
     wear: '9h 30m',
   },
 ];
+
+// Round 3 #10 — the single composite (0..100) shown per row, and its 0..1 form
+// used for the heatmap color/opacity. It blends the four metrics onto a common
+// "higher is better" 0..1 scale, then averages:
+//   posture / nasal : already 0..100, higher better -> /100
+//   clench          : events/hr, lower better -> 1 at 0, 0 at ~15/hr
+//   pressure        : comfort band centered on ~1.0 N; distance from the band
+//                     center penalizes the score
+// Kept pure + exported so the mapping is unit-testable.
+export function dayCompositeFraction(day) {
+  if (!day) return 0;
+  const posture = clamp01((Number(day.posture) || 0) / 100);
+  const nasal = clamp01((Number(day.nasal) || 0) / 100);
+  const clenchN = clamp01(1 - (Number(day.clench) || 0) / 15);
+  const pN = parsePressureN(day.pressure);
+  // Comfort center ~1.0 N; full credit inside +-0.5, decaying to 0 by +-1.5.
+  const pressure = clamp01(1 - Math.max(0, Math.abs(pN - 1.0) - 0.5) / 1.0);
+  return (posture + nasal + clenchN + pressure) / 4;
+}
+
+export function dayCompositeScore(day) {
+  return Math.round(dayCompositeFraction(day) * 100);
+}
+
+function clamp01(x) {
+  if (!isFinite(x)) return 0;
+  return Math.max(0, Math.min(1, x));
+}
+
+function parsePressureN(value) {
+  if (typeof value === 'number') return value;
+  const m = String(value == null ? '' : value).match(/-?\d+(\.\d+)?/);
+  return m ? parseFloat(m[0]) : 1.0;
+}
 
 export default function HistoryScreen() {
   return (
@@ -114,6 +149,20 @@ export default function HistoryScreen() {
             <Text style={styles.heatmapLegendText}>14d ago</Text>
             <Text style={styles.heatmapLegendText}>Today</Text>
           </View>
+
+          {/* Round 3 #10: a legend so the color/opacity ramp MEANS something.
+              A low->high gradient bar + one sentence. */}
+          <View style={styles.legendBarRow}>
+            <LegendBar />
+          </View>
+          <View style={styles.legendScale}>
+            <Text style={styles.heatmapLegendText}>Lower</Text>
+            <Text style={styles.heatmapLegendText}>Higher</Text>
+          </View>
+          <Text style={styles.legendCaption}>
+            Each square is a day's composite wellness score. Brighter, more
+            teal = a stronger day; dimmer, violet = a day to improve.
+          </Text>
         </View>
 
         <Text style={styles.listHeader}>Recent</Text>
@@ -138,7 +187,6 @@ function Heatmap({ values }) {
     <Svg width="100%" height={cellSize} viewBox={`0 0 ${width} ${height}`}>
       {values.map((v, i) => {
         const x = i * (cellSize + gap);
-        // Map 0..1 to teal->amber->violet color stops
         const color = compositeColor(v);
         return (
           <Rect
@@ -157,39 +205,72 @@ function Heatmap({ values }) {
   );
 }
 
-function compositeColor(v) {
+// A tiny three-stop bar (violet -> amber -> teal) that visually keys the
+// heatmap's color meaning for the legend (Round 3 #10).
+function LegendBar() {
+  return (
+    <Svg width="100%" height={8} viewBox="0 0 100 8">
+      <Defs>
+        <LinearGradient id="historyLegend" x1="0" y1="0" x2="1" y2="0">
+          <Stop offset="0" stopColor={colors.violet} />
+          <Stop offset="0.5" stopColor={colors.amber} />
+          <Stop offset="1" stopColor={colors.teal} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100" height="8" rx="4" fill="url(#historyLegend)" />
+    </Svg>
+  );
+}
+
+// Round 3 #10 — the composite-score -> color mapping, now documented. The score
+// is a 0..1 daily wellness composite (see dayCompositeFraction). Color is a
+// three-band signal, NOT a decorative ramp:
+//   >= 0.85  teal    — a strong day (in range across metrics)
+//   >= 0.70  amber   — a middling day, worth a look
+//   <  0.70  violet  — a low day to improve
+// (This screen predates the stateRed threshold work in #6 and keeps the
+// teal/amber/violet composite ramp deliberately; stateRed stays reserved for
+// the live per-metric "improve" state on Home/tiles.)
+export function compositeColor(v) {
   if (v >= 0.85) return colors.teal;
   if (v >= 0.7) return colors.amber;
   return colors.violet;
 }
 
 function DayRow({ day }) {
+  // Round 3 #4 + Wes decision #3: the row press was dead (depressed, went
+  // nowhere). A day-detail screen is deferred, so for now fire a selection
+  // tick on press-in and keep the visual press feedback — the gesture no
+  // longer feels broken.
+  // Round 3 #10: rows used to show four metric chips each, which was noisy and
+  // implied tappable drill-down that doesn't exist. Collapse to ONE composite
+  // score + a single color dot per row (per Wes decision #3, we are NOT
+  // building the day-detail view this round). The uniform label pattern:
+  // "Today" for the latest day, otherwise the calendar date — no sub-line.
+  const fraction = dayCompositeFraction(day);
+  const score = dayCompositeScore(day);
+  const dotColor = compositeColor(fraction);
+  const primaryLabel = day.isToday ? 'Today' : day.date;
+
   return (
-    <Pressable style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${primaryLabel}, composite score ${score}, worn ${day.wear}`}
+      onPressIn={() => haptics.selection()}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
       <View style={styles.rowHead}>
-        <View>
-          <Text style={styles.dayLabel}>{day.label}</Text>
-          {day.sub ? <Text style={styles.daySub}>{day.sub}</Text> : null}
-        </View>
+        <Text style={styles.dayLabel}>{primaryLabel}</Text>
         <Text style={styles.wear}>Worn {day.wear}</Text>
       </View>
 
-      <View style={styles.chipRow}>
-        <Chip label={`Posture ${day.posture}`} accent={colors.teal} />
-        <Chip label={`Pressure ${day.pressure}`} accent={colors.amber} />
-        <Chip label={`Clench ${day.clench}`} accent={colors.violet} />
-        <Chip label={`Nasal ${day.nasal}%`} accent={colors.teal} />
+      <View style={styles.compositeRow}>
+        <View style={[styles.compositeDot, { backgroundColor: dotColor }]} />
+        <Text style={styles.compositeScore}>{score}</Text>
+        <Text style={styles.compositeUnit}>/ 100</Text>
+        <Text style={styles.compositeLabel}>composite</Text>
       </View>
     </Pressable>
-  );
-}
-
-function Chip({ label, accent }) {
-  return (
-    <View style={[styles.chip, { borderColor: accent + '55' }]}>
-      <View style={[styles.chipDot, { backgroundColor: accent }]} />
-      <Text style={styles.chipText}>{label}</Text>
-    </View>
   );
 }
 
@@ -211,8 +292,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
   subtitle: {
@@ -221,8 +302,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   heatmapWrap: {
+    // Round 3 #3: unify the heatmap strip container on the elevated material.
+    ...elevatedCard,
     marginTop: spacing.lg,
-    backgroundColor: colors.surface,
     borderRadius: 18,
     padding: spacing.md,
   },
@@ -235,6 +317,21 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: typography.sizes.tiny,
   },
+  // Round 3 #10 heatmap legend.
+  legendBarRow: {
+    marginTop: spacing.md,
+  },
+  legendScale: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: spacing.xs,
+  },
+  legendCaption: {
+    color: colors.muted,
+    fontSize: typography.sizes.tiny,
+    lineHeight: typography.lineHeights.caption,
+    marginTop: spacing.sm,
+  },
   listHeader: {
     color: colors.muted,
     fontSize: typography.sizes.caption,
@@ -244,12 +341,13 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   row: {
-    backgroundColor: colors.surface,
+    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
+    // elevated card material so History rows read like Home cards, not a
+    // to-do list.
+    ...elevatedCard,
     borderRadius: 18,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
   },
   rowPressed: {
     opacity: 0.78,
@@ -264,41 +362,41 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
   },
-  daySub: {
-    color: colors.muted,
-    fontSize: typography.sizes.tiny,
-    marginTop: 2,
-  },
   wear: {
     color: colors.muted,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
   },
-  chipRow: {
+  // Round 3 #10: single composite indicator replacing the 4 metric chips.
+  compositeRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'baseline',
     marginTop: spacing.sm,
   },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    marginRight: 6,
-    marginTop: 6,
-    backgroundColor: colors.navy,
+  compositeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 10,
+    marginRight: spacing.sm,
+    alignSelf: 'center',
   },
-  chipDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 6,
-    marginRight: 6,
-  },
-  chipText: {
+  compositeScore: {
     color: colors.white,
+    fontSize: typography.sizes.title,
+    fontFamily: typography.familyDisplay,
+    letterSpacing: -0.5,
+  },
+  compositeUnit: {
+    color: colors.muted,
+    fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.medium,
+    marginLeft: spacing.xs,
+  },
+  compositeLabel: {
+    color: colors.muted,
     fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginLeft: spacing.sm,
   },
 });

@@ -1,5 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from './AppText';
 import Animated, {
   Easing,
   cancelAnimation,
@@ -10,9 +13,10 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 
 import colors from '../theme/colors';
+import { getMetricColor } from '../theme/metricState';
 import spacing from '../theme/spacing';
 import typography from '../theme/typography';
 import { haptics } from '../utils/haptics';
@@ -28,8 +32,15 @@ export const ANIM_DURATION_MS = 900;
  *
  * Oura-style circular score ring: a thin background track with a colored
  * progress arc that fills clockwise from the top, and a large display number
- * centered inside. The arc uses our locked palette ramp (teal -> amber ->
- * violet) so it reads consistently with the palate pressure map.
+ * centered inside.
+ *
+ * Round 3 #6 (Wes decision #6) — SOLID STATE COLOR. The arc used to run a fixed
+ * teal -> amber -> violet gradient regardless of the score, so a great posture
+ * always showed violet at the tip (color as spectrum, not signal). It now
+ * renders in ONE color derived from the value + threshold via metricState
+ * (teal = optimal, amber = attention, stateRed = improve). The ring color IS
+ * the state. Pass `metric` (or a `label` that names a known metric) so the
+ * threshold lookup knows which band to use; `stateColor` can override directly.
  *
  * Roadmap V2 #2 — the arc now FILLS and the centered number COUNTS UP on
  * mount and whenever `value` changes (Apple Watch ring identity). Motion is
@@ -54,9 +65,16 @@ export default function ScoreRing({
   size = 132,
   strokeWidth = 10,
   suffix,
+  metric,
+  stateColor,
 }) {
   const numericValue = typeof value === 'number' ? value : parseFloat(value) || 0;
   const fraction = ringFraction(numericValue, max);
+
+  // Round 3 #6: solid state color for the arc. Priority: explicit `stateColor`
+  // prop -> metric+value lookup (metric or the label naming a known metric) ->
+  // teal fallback. `metricValue` uses the raw `value` so "87/100" etc parse.
+  const arcColor = stateColor || getMetricColor(metric || label, value);
 
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -134,14 +152,6 @@ export default function ScoreRing({
       accessibilityLabel={`${label ? label + ': ' : ''}${numericValue} of ${max}`}
     >
       <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        <Defs>
-          <LinearGradient id="scoreRingRamp" x1="0" y1="1" x2="1" y2="0">
-            <Stop offset="0" stopColor={colors.teal} />
-            <Stop offset="0.62" stopColor={colors.amber} />
-            <Stop offset="1" stopColor={colors.violet} />
-          </LinearGradient>
-        </Defs>
-
         {/* Background track */}
         <Circle
           cx={center}
@@ -152,12 +162,14 @@ export default function ScoreRing({
           fill="none"
         />
 
-        {/* Progress arc — rotated -90deg so it starts at 12 o'clock */}
+        {/* Progress arc — rotated -90deg so it starts at 12 o'clock.
+            Round 3 #6: SOLID state color (was a fixed teal->amber->violet
+            gradient). The single hue IS the state. */}
         <AnimatedCircle
           cx={center}
           cy={center}
           r={radius}
-          stroke="url(#scoreRingRamp)"
+          stroke={arcColor}
           strokeWidth={strokeWidth}
           strokeLinecap="round"
           fill="none"
@@ -262,9 +274,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.display,
     lineHeight: typography.lineHeights.display,
-    // Headline numeral → Inter Black display face (Roadmap V2 #1).
+    // Headline numeral → Inter Black display face (Roadmap V2 #1). The display
+    // face carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.familyDisplay,
-    fontWeight: typography.weights.display,
     letterSpacing: -1,
   },
   suffix: {
@@ -272,14 +284,15 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.bold,
     marginTop: spacing.sm,
-    marginLeft: 2,
+    marginLeft: spacing.xxs,
   },
   label: {
     color: colors.muted,
-    fontSize: 10,
+    // Round 3 #8: was a magic `fontSize: 10` — now the `micro` scale token.
+    fontSize: typography.sizes.micro,
     letterSpacing: 0.8,
     fontWeight: typography.weights.bold,
-    marginTop: 2,
+    marginTop: spacing.xxs,
     textTransform: 'uppercase',
     textAlign: 'center',
   },

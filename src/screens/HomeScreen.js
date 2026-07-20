@@ -1,5 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -54,6 +57,24 @@ export default function HomeScreen({ navigation }) {
   // Rolling 3-second average (10Hz x 3s = 30 samples) so displayed tile values are steady
   const smoothedPosture = useSmoothed(rawPosture, { windowSize: 30, throttleMs: 300 });
   const smoothedPressure = useSmoothed(rawPressure, { windowSize: 30, throttleMs: 300 });
+
+  // Round 3 #5: real Palatal Pressure sparkline series.
+  //
+  // Palatal Pressure is the ONE Home tile backed by a real streamed signal
+  // (the FSR-derived pressure). We keep a rolling buffer of the last ~30
+  // smoothed pressure samples so the sparkline reflects the same series that
+  // feeds the tile value — not a hard-coded, frozen array. Posture / Clench /
+  // Nasal have no real time-series in demo mode, so their tiles omit the
+  // sparkline entirely (below) rather than show a fake one.
+  const pressureSeriesRef = useRef([]);
+  const [pressureSeries, setPressureSeries] = useState([]);
+  useEffect(() => {
+    if (typeof smoothedPressure !== 'number' || Number.isNaN(smoothedPressure)) return;
+    const buf = pressureSeriesRef.current;
+    buf.push(smoothedPressure);
+    if (buf.length > 30) buf.splice(0, buf.length - 30);
+    setPressureSeries([...buf]);
+  }, [smoothedPressure]);
 
   const metrics = useMemo(() => {
     if (videoMode) {
@@ -142,7 +163,7 @@ export default function HomeScreen({ navigation }) {
               value={metrics.posture}
               accent={colors.teal}
               onPress={() => openAnalytics('posture')}
-              sparkline={[20, 24, 26, 25, 29, 31]}
+              /* #5: no real posture time-series in demo mode — omit sparkline */
             />
             <View style={styles.gridGap} />
             <MetricTile
@@ -151,7 +172,8 @@ export default function HomeScreen({ navigation }) {
               unit={videoMode ? '/100' : 'N'}
               accent={colors.amber}
               onPress={() => openAnalytics('pressure')}
-              sparkline={[12, 16, 14, 18, 22, 19]}
+              /* #5: real rolling series from the smoothed FSR pressure signal */
+              sparkline={pressureSeries}
             />
           </View>
           <View style={styles.gridRow}>
@@ -161,7 +183,7 @@ export default function HomeScreen({ navigation }) {
               unit={videoMode ? '' : '/hr'}
               accent={colors.violet}
               onPress={() => openAnalytics('clench')}
-              sparkline={[4, 5, 4, 8, 5, 6]}
+              /* #5: no real clench time-series in demo mode — omit sparkline */
             />
             <View style={styles.gridGap} />
             <MetricTile
@@ -170,7 +192,7 @@ export default function HomeScreen({ navigation }) {
               unit="%"
               accent={colors.teal}
               onPress={() => openAnalytics('nasal')}
-              sparkline={[18, 19, 21, 20, 23, 24]}
+              /* #5: no real nasal time-series in demo mode — omit sparkline */
             />
           </View>
         </View>
@@ -229,7 +251,7 @@ const styles = StyleSheet.create({
   window: {
     color: colors.muted,
     fontSize: typography.sizes.caption,
-    marginTop: 2,
+    marginTop: spacing.xxs,
   },
   welcomeBlock: {
     marginTop: spacing.xl,
@@ -245,8 +267,8 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
+    // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.bold,
   },
   source: {
     color: colors.muted,

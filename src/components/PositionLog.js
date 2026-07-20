@@ -1,14 +1,14 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from './AppText';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
-
-// Subtle gold for the PREMIUM pill. Copied from TakeawayCard rather than
-// refactored into a shared component on purpose (premature abstraction) —
-// keep this value in sync with TakeawayCard's PREMIUM_GOLD if it ever changes.
-const PREMIUM_GOLD = '#E5C572';
+import PremiumPill from './PremiumPill';
 
 /**
  * PositionLog
@@ -73,9 +73,7 @@ export default function PositionLog({ log = [], currentPosition }) {
     >
       <View style={styles.header}>
         <Text style={styles.title}>Head Position</Text>
-        <View style={styles.premiumPill}>
-          <Text style={styles.premiumPillText}>PREMIUM FEATURE</Text>
-        </View>
+        <PremiumPill />
       </View>
 
       {entries.length === 0 ? (
@@ -124,18 +122,12 @@ export default function PositionLog({ log = [], currentPosition }) {
 
 const styles = StyleSheet.create({
   card: {
-    // Match TakeawayCard's elevated depth language exactly.
-    backgroundColor: colors.surfaceElevated,
+    // Round 3 #3: canonical elevated card material via the shared helper
+    // (matches TakeawayCard exactly).
+    ...elevatedCard,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.ink,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
   },
   header: {
     flexDirection: 'row',
@@ -147,28 +139,13 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.callout,
     // Heavy title (not a big numeral) → Inter Bold preserves the existing
-    // heavy hierarchy without the over-weight Black display cut (V2 #1).
+    // heavy hierarchy without the over-weight Black display cut (V2 #1). Named
+    // family carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.display,
     lineHeight: typography.lineHeights.callout,
     letterSpacing: -0.2,
     flexShrink: 1,
     paddingRight: spacing.sm,
-  },
-  // Pill styling copied from TakeawayCard (intentional duplication).
-  premiumPill: {
-    backgroundColor: 'rgba(229, 197, 114, 0.12)',
-    borderColor: 'rgba(229, 197, 114, 0.45)',
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  premiumPillText: {
-    color: PREMIUM_GOLD,
-    fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1.2,
   },
   list: {
     maxHeight: 220,
@@ -199,7 +176,10 @@ const styles = StyleSheet.create({
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    // Round 3 #1: was `borderRadius: 4` on an 8x8 box — a rounded square, not a
+    // circle. Every other status dot in the app uses radius >= size. Use 999
+    // (Wes decision) so it is unambiguously round at any size.
+    borderRadius: 999,
     marginRight: spacing.sm,
   },
   positionLabel: {
@@ -220,9 +200,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   emptyText: {
+    // Round 3 #8: dropped `fontStyle: 'italic'` (no bundled Inter italic cut).
     color: colors.muted,
     fontSize: typography.sizes.body,
-    fontStyle: 'italic',
     opacity: 0.8,
   },
   footer: {

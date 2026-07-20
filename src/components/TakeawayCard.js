@@ -1,13 +1,14 @@
 import React from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from './AppText';
 
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
+import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
-
-// Subtle gold for the PREMIUM pill — distinct from the amber metric accent so it
-// reads as "tier" not "data". RGB roughly matches Apple's "premium gold" palette.
-const PREMIUM_GOLD = '#E5C572';
+import PremiumPill from './PremiumPill';
 
 /**
  * TakeawayCard
@@ -38,9 +39,7 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
     <View style={styles.card} accessibilityRole="summary" accessibilityLabel="Daily takeaway">
       <View style={styles.header}>
         <Text style={styles.title}>{takeaway.title}</Text>
-        <View style={styles.premiumPill}>
-          <Text style={styles.premiumPillText}>PREMIUM FEATURE</Text>
-        </View>
+        <PremiumPill />
       </View>
 
       <Text style={styles.body}>{takeaway.body}</Text>
@@ -100,20 +99,12 @@ export default function TakeawayCard({ takeaway, onRefresh }) {
 
 const styles = StyleSheet.create({
   card: {
-    // Match the metric-tile elevated depth language (lifted surface, hairline
-    // inner border, soft shadow). Premium signal still lives entirely in the
-    // gold pill in the header.
-    backgroundColor: colors.surfaceElevated,
+    // Round 3 #3: canonical elevated card material via the shared helper.
+    // Premium signal still lives entirely in the gold pill in the header.
+    ...elevatedCard,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.ink,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.35,
-    shadowRadius: 16,
-    elevation: 6,
   },
   header: {
     flexDirection: 'row',
@@ -125,27 +116,13 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.callout,
     // Heavy title (not a big numeral) → Inter Bold preserves the existing
-    // heavy hierarchy without the over-weight Black display cut (V2 #1).
+    // heavy hierarchy without the over-weight Black display cut (V2 #1). Named
+    // family carries the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.display,
     lineHeight: typography.lineHeights.callout,
     letterSpacing: -0.2,
     flexShrink: 1,
     paddingRight: spacing.sm,
-  },
-  premiumPill: {
-    backgroundColor: 'rgba(229, 197, 114, 0.12)',
-    borderColor: 'rgba(229, 197, 114, 0.45)',
-    borderWidth: 1,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  premiumPillText: {
-    color: PREMIUM_GOLD,
-    fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1.2,
   },
   body: {
     color: colors.white,
@@ -198,11 +175,13 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.medium,
   },
   disclaimer: {
+    // Round 3 #8: dropped `fontStyle: 'italic'` — the bundled Inter face has no
+    // italic cut, so it slanted via faux-italic (or not at all). Lower opacity
+    // already sets it apart as fine print.
     color: colors.muted,
     fontSize: typography.sizes.tiny,
     lineHeight: 15,
     marginTop: spacing.md,
-    fontStyle: 'italic',
     opacity: 0.7,
   },
 });

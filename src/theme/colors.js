@@ -8,6 +8,21 @@ const colors = {
   muted: '#8B93A7',
   surface: '#141B2D',
 
+  // --- STATE-ONLY EXTENSION (Round 3, Wes decision #2, July 8) ---
+  // `stateRed` is the ONLY red in the app and is a *state* color, not a
+  // decorative palette member. It renders EXCLUSIVELY when a metric falls into
+  // the "improve" threshold band (see src/theme/metricState.js). It MUST NEVER
+  // be used as a static accent, border, chip, or any decorative surface. If you
+  // are reaching for red for anything other than a live "improve" metric state,
+  // you are using the wrong token.
+  stateRed: '#FF6B6B',
+
+  // --- PREMIUM TIER EXTENSION (Round 3, Wes decision, July 8) ---
+  // Subtle gold reserved for the "PREMIUM FEATURE" pill. Distinct from `amber`
+  // (a data/attention color) so it reads as "tier," not "metric." Consumed by
+  // src/components/PremiumPill.js. Not a general-purpose accent.
+  premiumGold: '#E5C572',
+
   // --- Neutral depth tokens (Oura-style layered dark mode) ---
   // Depth order, darkest -> lightest: base -> navy -> surface -> surfaceElevated.
   // Per NN/g dark-mode guidance, the bottom layer is darkest and elevated

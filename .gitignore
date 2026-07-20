@@ -39,3 +39,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Agent working files (briefs, prior-roadmap dupes, references)
+.context/

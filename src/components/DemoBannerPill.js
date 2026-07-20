@@ -1,5 +1,8 @@
 import React from 'react';
-import { Alert, Platform, Pressable, StyleSheet, Text } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet } from 'react-native';
+
+// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
+import Text from './AppText';
 import * as Haptics from 'expo-haptics';
 
 import useSettingsStore from '../store/settingsStore';

@@ -1,5 +1,9 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+
+// Round 3 #11: default Inter face comes from the AppText wrapper (replaces the
+// removed Text.defaultProps mutation). Explicit style families still override.
+import Text from './AppText';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -274,9 +278,9 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.title,
     lineHeight: typography.lineHeights.title,
-    // Heavy section title → Inter Bold (Roadmap V2 #1).
+    // Heavy section title → Inter Bold (Roadmap V2 #1). Named family carries
+    // the weight; numeric fontWeight dropped (Round 3 #8).
     fontFamily: typography.family.bold,
-    fontWeight: typography.weights.display,
     letterSpacing: -0.3,
     marginTop: spacing.xs,
   },

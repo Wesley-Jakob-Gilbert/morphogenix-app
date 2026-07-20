@@ -81,8 +81,9 @@ export default function RootNavigator() {
         tabBarBackground,
         tabBarLabelStyle: {
           fontSize: typography.sizes.tiny,
+          // Named Inter family carries the weight; numeric fontWeight is a
+          // no-op for bundled faces and was removed (Round 3 #8).
           fontFamily: typography.family.bold,
-          fontWeight: typography.weights.bold,
         },
         tabBarIcon: ({ focused, color, size }) => {
           const [activeIcon, inactiveIcon] = icons[route.name];

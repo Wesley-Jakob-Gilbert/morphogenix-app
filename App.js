@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -14,7 +14,6 @@ import {
 import RootNavigator from './src/navigation/RootNavigator';
 import StreamerProvider from './src/services/streamer/StreamerProvider';
 import colors from './src/theme/colors';
-import typography from './src/theme/typography';
 
 const navTheme = {
   ...DefaultTheme,
@@ -30,19 +29,12 @@ const navTheme = {
 
 // Roadmap V2 #1 — Inter font system.
 //
-// Establish Inter Regular as the app-wide default face so every <Text> that
-// does not set its own family inherits Inter (the prior `family: undefined`
-// rendered the platform system font everywhere). Big numerals / titles that
-// need a heavier cut set their own family explicitly via the typography
-// tokens; this only changes the *base* family, not the weight hierarchy.
-//
-// `Text.defaultProps` is the standard RN hook for a global default text style.
-// Guarded so it is only set up once.
-Text.defaultProps = Text.defaultProps || {};
-Text.defaultProps.style = [
-  { fontFamily: typography.family.regular },
-  Text.defaultProps.style,
-].filter(Boolean);
+// The app-wide default Inter Regular face is now applied by the `AppText`
+// wrapper component (src/components/AppText.js), which screens/components import
+// in place of react-native's <Text>. This replaced the old
+// `Text.defaultProps.style = [...]` global mutation (Round 3 #11) — that hook
+// is deprecated in React 18 / RN 0.7x and mutated shared state at import time.
+// Big numerals / titles still set their own heavier family explicitly.
 
 export default function App() {
   const [fontsLoaded] = useFonts({
