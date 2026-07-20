@@ -2,7 +2,7 @@
   "expo": {
     "name": "MorphoGenix",
     "slug": "morphogenix-app",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -12,13 +12,29 @@
       "backgroundColor": "#0B1220"
     },
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "ai.morphogenix.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "requireFullScreen": false,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data.",
+        "NSBluetoothPeripheralUsageDescription": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data.",
+        "UIBackgroundModes": ["bluetooth-central"],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
+      "package": "ai.morphogenix.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0B1220"
-      }
+      },
+      "permissions": [
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -26,8 +42,25 @@
       "output": "static"
     },
     "plugins": [
+      "expo-dev-client",
       "expo-font",
-      "expo-router"
+      "expo-router",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "deploymentTarget": "15.1"
+          }
+        }
+      ]
     ],
     "experiments": {
       "baseUrl": "/demo"
