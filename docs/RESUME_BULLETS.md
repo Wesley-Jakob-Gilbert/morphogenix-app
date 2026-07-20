@@ -12,7 +12,7 @@
 - Implemented on-device data persistence and settings using SQLite (`expo-sqlite`) and an AsyncStorage-backed state layer (Zustand), so session history and preferences survive app restarts offline.
 - Designed a custom dark-theme design system (Inter typography, locked palette, stateful metric colors) that mirrors Apple HIG affordances and respects the system **reduce-motion** accessibility setting.
 - Built fluid data visualizations with **Reanimated 4** and Skia — animated arc-fill score rings, count-up numerics, and draw-on charts — with a graceful non-animated fallback for reduced-motion users.
-- Wrote and maintained a **136-test** Jest suite (10 suites) covering the binary protocol parser, head-position math, metric-state logic, and UI components, run locally and gated in CI.
+- Wrote and maintained a **175-test** Jest suite (14 suites) covering the binary protocol parser, head-position math, metric-state logic, and UI components, run locally and gated in CI.
 - Developed the device **firmware** in **embedded C++** (Arduino IDE) for the Seeed XIAO nRF52840 Sense, exposing sensor data over the Nordic UART Service with a versioned binary packet format and `z`/`r`/`i` command interface.
 - Integrated an LSM6DS3TR-C 6-axis IMU over **I²C** (address `0x6A`, ±2 g / 26 Hz) for head/sleep-position sensing, with a library-or-raw-register fallback path and on-device pitch/roll computation matching the app-side classifier.
 - Designed the sensing hardware — a 4-channel FSR array (molar + palate) with per-channel signal conditioning, 3D-printed enclosures, and Ecoflex/Dragon Skin silicone casting from scanned dental masters.
@@ -25,7 +25,7 @@
 
 **MorphoGenix — Founder & Full-Stack Engineer | 2025 – Present** · Albuquerque, NM (remote)
 
-- Built a cross-platform **iOS**/Android app in **React Native** (Expo SDK 54) for an intraoral biometric wearable, with a **136-test** Jest suite and EAS/**TestFlight** build pipeline.
+- Built a cross-platform **iOS**/Android app in **React Native** (Expo SDK 54) for an intraoral biometric wearable, with a **175-test** Jest suite and EAS/**TestFlight** build pipeline.
 - Engineered a **real-time** **BLE** pipeline parsing a custom 22-byte binary protocol at **10 Hz**, shared across web and native (`react-native-ble-plx`) transports.
 - Wrote device **firmware** in **embedded C++** for the Seeed XIAO nRF52840 Sense (Nordic UART Service, 4× FSR + LSM6DS3TR-C IMU over I²C).
 - Delivered full-stack: on-device persistence, a custom accessible design system with Reanimated animations, and a FastAPI landing site on Fly.io with GitHub Actions CI/CD.
