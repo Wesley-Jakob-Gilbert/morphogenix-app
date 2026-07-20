@@ -1,70 +1,132 @@
 /**
- * BleConnectCard — bench-only UI for connecting to a MorphoGenix device.
+ * BleConnectCard — device connection UI for the MorphoGenix live BLE stream.
  *
- * Renders ONLY when the user has opted into live BLE mode via `?live=ble`
- * in the URL. On the production demo URL this component is never mounted,
- * so production behavior is bit-for-bit unchanged.
+ * TWO render paths, one component:
  *
- * States (driven by StreamerContext.bleStatus):
- *   idle          - "Connect device" button
- *   scanning      - "Pick a device…" (browser chooser is open)
- *   connecting    - "Connecting to <name>…"
- *   connected     - shows device name + small green dot + "Disconnect"
- *   silent        - connected but no notifications (firmware sleeping?) +
- *                   "Disconnect"
- *   disconnected  - "Reconnect" affordance
- *   error         - error message + "Try again"
+ *   • Web (bench build): renders ONLY when `?live=ble` is in the URL, exactly
+ *     as before, so production morphogenix.ai stays visually identical. Uses
+ *     the Web Bluetooth chooser; copy is unchanged.
  *
- * Also surfaces a clear capability message if Web Bluetooth is unavailable
- * (e.g. iOS Safari) so the user isn't left wondering why the button does
- * nothing.
+ *   • Native (iOS/Android dev-client): always renders. Drives the real
+ *     react-native-ble-plx scan flow through StreamerContext.bleStatus:
+ *       idle          → "Connect device"
+ *       scanning      → spinner + "Scanning…"
+ *       connecting    → spinner + "Connecting to <name>…"
+ *       connected     → device name + RSSI/live raw + "Disconnect"
+ *       reconnecting  → spinner + "Reconnecting…"
+ *       disconnected  → "Reconnect"
+ *       silent        → "Connected, no data" + "Disconnect"
+ *       error:
+ *         no_device_found     → "No device found" + retry
+ *         permission_denied   → "Bluetooth permission required" + Open Settings
+ *         bluetooth_off       → "Turn on Bluetooth"
+ *         unsupported         → "Bluetooth unavailable"
+ *         (other)             → message + "Try again"
+ *
+ * Haptics: success feedback on 'connected', warning feedback on error/silent/
+ * disconnected transitions (via the existing haptics wrapper — no-op on web).
  */
 
-import React, { useContext } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import React, { useContext, useEffect, useRef } from 'react';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, View } from 'react-native';
 
-// Round 3 #11: default Inter face via AppText wrapper (see App.js note).
 import Text from './AppText';
 
 import useIsClient from '../hooks/useIsClient';
 import useLiveModeFlag from '../hooks/useLiveModeFlag';
 import { StreamerContext } from '../services/streamer/StreamerProvider';
+import haptics from '../utils/haptics';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
 import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 
+const IS_WEB = Platform.OS === 'web';
+
+// Native error reasons (from nativeBleAdapter / blePermissions) mapped to copy.
+function describeNativeError(detail) {
+  switch (detail) {
+    case 'no_device_found':
+    case 'scan_timeout':
+      return {
+        title: 'No device found',
+        body: 'Make sure your MorphoGenix device is powered on and nearby, then try again.',
+        action: 'retry',
+      };
+    case 'permission_denied':
+      return {
+        title: 'Bluetooth permission required',
+        body: 'MorphoGenix needs Bluetooth access to connect to your device. Enable it in Settings.',
+        action: 'settings',
+      };
+    case 'bluetooth_off':
+      return {
+        title: 'Turn on Bluetooth',
+        body: 'Bluetooth is off. Turn it on in Control Center or Settings, then try again.',
+        action: 'retry',
+      };
+    case 'unsupported':
+      return {
+        title: 'Bluetooth unavailable',
+        body: "This device can't use Bluetooth Low Energy.",
+        action: null,
+      };
+    default:
+      return {
+        title: 'Connection error',
+        body: detail || 'Something went wrong. Try again.',
+        action: 'retry',
+      };
+  }
+}
+
 export default function BleConnectCard() {
-  // Two-stage gate, both required:
-  //   1. useIsClient() returns false on first commit so the entire card stays
-  //      out of the hydration-comparison tree. This guarantees React 19 never
-  //      tears down the parent on a hydration mismatch from anything inside
-  //      this card (capability checks, URL flag, status state, etc).
-  //   2. useLiveBleFlag() then gates by ?live=ble so production morphogenix.ai
-  //      remains visually identical (the card never appears off the bench).
   const isClient = useIsClient();
   const { ble: liveBle, video: videoMode } = useLiveModeFlag();
-  const { bleStatus, connect, disconnect, isBleSupported, packet } = useContext(StreamerContext);
-
-  if (!isClient) return null;
-  if (videoMode) return null;
-  if (!liveBle) return null;
+  const { bleStatus, connect, disconnect, sendCommand, isBleSupported, packet } =
+    useContext(StreamerContext);
 
   const state = bleStatus?.state || 'idle';
   const detail = bleStatus?.detail;
+
+  // Fire haptics on meaningful state transitions (no-op on web).
+  const prevState = useRef(state);
+  useEffect(() => {
+    if (prevState.current !== state) {
+      if (state === 'connected') haptics.success();
+      else if (state === 'error' || state === 'silent' || state === 'disconnected') {
+        haptics.warning();
+      }
+      prevState.current = state;
+    }
+  }, [state]);
+
+  // ----- gating -----
+  // Web: unchanged two-stage gate (client + ?live=ble). Native: always render.
+  if (IS_WEB) {
+    if (!isClient) return null;
+    if (videoMode) return null;
+    if (!liveBle) return null;
+  }
 
   const onConnect = async () => {
     try {
       await connect();
     } catch (err) {
-      // BleStreamer already pushes the error into bleStatus; nothing to do.
-      // Logging here helps when poking at it in DevTools.
+      // Status already reflects the error; log for debugging.
       // eslint-disable-next-line no-console
       console.warn('[MorphoGenix] BLE connect failed', err);
     }
   };
 
-  if (!isBleSupported) {
+  const onOpenSettings = () => {
+    if (typeof Linking.openSettings === 'function') {
+      Linking.openSettings().catch(() => {});
+    }
+  };
+
+  // Web-only: capability guard for browsers without Web Bluetooth.
+  if (IS_WEB && !isBleSupported) {
     return (
       <View style={[styles.card, styles.cardWarn]}>
         <Text style={styles.title}>Web Bluetooth unavailable</Text>
@@ -76,21 +138,29 @@ export default function BleConnectCard() {
     );
   }
 
-  // Compose the body copy and primary action by state.
+  // Compose title / body / primary action / spinner by state.
   let title;
   let body;
-  let primary;
+  let primary = null;
+  let showSpinner = false;
 
   switch (state) {
     case 'scanning':
-      title = 'Pick a device';
-      body = 'Choose “MorphoGenixSOD” in the browser dialog.';
-      primary = null;
+      title = 'Scanning…';
+      body = IS_WEB
+        ? 'Choose “MorphoGenixSOD” in the browser dialog.'
+        : 'Looking for your MorphoGenix device…';
+      showSpinner = true;
       break;
     case 'connecting':
       title = 'Connecting…';
       body = detail ? `Pairing with ${detail}` : 'Pairing…';
-      primary = null;
+      showSpinner = true;
+      break;
+    case 'reconnecting':
+      title = 'Reconnecting…';
+      body = detail ? `Link dropped — ${detail}` : 'Link dropped — retrying…';
+      showSpinner = true;
       break;
     case 'connected':
       title = 'Connected';
@@ -107,15 +177,29 @@ export default function BleConnectCard() {
       body = 'The device dropped off. Tap to reconnect.';
       primary = { label: 'Reconnect', onPress: onConnect, kind: 'primary' };
       break;
-    case 'error':
-      title = 'Connection error';
-      body = detail || 'Something went wrong.';
-      primary = { label: 'Try again', onPress: onConnect, kind: 'primary' };
+    case 'error': {
+      if (IS_WEB) {
+        title = 'Connection error';
+        body = detail || 'Something went wrong.';
+        primary = { label: 'Try again', onPress: onConnect, kind: 'primary' };
+      } else {
+        const e = describeNativeError(detail);
+        title = e.title;
+        body = e.body;
+        if (e.action === 'settings') {
+          primary = { label: 'Open Settings', onPress: onOpenSettings, kind: 'primary' };
+        } else if (e.action === 'retry') {
+          primary = { label: 'Try again', onPress: onConnect, kind: 'primary' };
+        }
+      }
       break;
+    }
     case 'idle':
     default:
       title = 'Live BLE mode';
-      body = 'Stream raw palate FSR readings from your XIAO nRF52840.';
+      body = IS_WEB
+        ? 'Stream raw palate FSR readings from your XIAO nRF52840.'
+        : 'Connect to your MorphoGenix device to stream live palate + head-position data.';
       primary = { label: 'Connect device', onPress: onConnect, kind: 'primary' };
       break;
   }
@@ -126,7 +210,7 @@ export default function BleConnectCard() {
       ? packet.palateRaw.join(', ')
       : state === 'connected' && packet && typeof packet.palateRaw === 'number'
         ? packet.palateRaw
-      : null;
+        : null;
 
   const dotColor =
     state === 'connected'
@@ -135,17 +219,29 @@ export default function BleConnectCard() {
         ? colors.amber
         : colors.muted;
 
+  // Native-only diagnostic buttons when connected (rezero / imu-diag).
+  const showDiagnostics = !IS_WEB && state === 'connected';
+  const onRezero = () => {
+    haptics.selection();
+    Promise.resolve(sendCommand && sendCommand('z')).catch(() => {});
+  };
+  const onImuDiag = () => {
+    haptics.selection();
+    Promise.resolve(sendCommand && sendCommand('i')).catch(() => {});
+  };
+
   return (
     <View style={styles.card}>
       <View style={styles.headerRow}>
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
         <Text style={styles.title}>{title}</Text>
+        {showSpinner ? (
+          <ActivityIndicator size="small" color={colors.teal} style={styles.spinner} />
+        ) : null}
       </View>
       <Text style={styles.body}>{body}</Text>
 
-      {liveRaw != null ? (
-        <Text style={styles.raw}>raw: {liveRaw}</Text>
-      ) : null}
+      {liveRaw != null ? <Text style={styles.raw}>raw: {liveRaw}</Text> : null}
 
       {primary ? (
         <Pressable
@@ -167,14 +263,31 @@ export default function BleConnectCard() {
           </Text>
         </Pressable>
       ) : null}
+
+      {showDiagnostics ? (
+        <View style={styles.diagRow}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onRezero}
+            style={({ pressed }) => [styles.diagButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.diagLabel}>Rezero</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onImuDiag}
+            style={({ pressed }) => [styles.diagButton, pressed && styles.buttonPressed]}
+          >
+            <Text style={styles.diagLabel}>IMU diag</Text>
+          </Pressable>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
-    // elevated card material. (cardWarn still overrides borderColor to amber.)
     ...elevatedCard,
     marginTop: spacing.lg,
     paddingVertical: spacing.lg,
@@ -194,6 +307,9 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 999,
     marginRight: spacing.sm,
+  },
+  spinner: {
+    marginLeft: spacing.sm,
   },
   title: {
     color: colors.white,
@@ -234,5 +350,22 @@ const styles = StyleSheet.create({
   },
   buttonLabelSecondary: {
     color: colors.white,
+  },
+  diagRow: {
+    flexDirection: 'row',
+    marginTop: spacing.md,
+  },
+  diagButton: {
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.muted,
+    marginRight: spacing.sm,
+  },
+  diagLabel: {
+    color: colors.white,
+    fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.medium,
   },
 });
