@@ -73,7 +73,7 @@ export default function RootNavigator() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: colors.teal,
+        tabBarActiveTintColor: colors.emerald,
         tabBarInactiveTintColor: colors.muted,
         // Float the bar over content (position: absolute). Screens pad their
         // scroll content so it scrolls UNDER the frosted bar, not behind it.

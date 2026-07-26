@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginTop: spacing.lg,
     borderRadius: 999,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.emerald,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
   },

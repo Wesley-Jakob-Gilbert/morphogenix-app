@@ -12,7 +12,7 @@ import typography from '../theme/typography';
 export default function WearTimeCaption({ label }) {
   return (
     <View style={styles.wrap}>
-      <Ionicons name="time-outline" color={colors.teal} size={16} />
+      <Ionicons name="time-outline" color={colors.emerald} size={16} />
       <Text style={styles.text}>{label}</Text>
     </View>
   );

@@ -137,14 +137,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   citationDot: {
-    color: colors.teal,
+    color: colors.emerald,
   },
   citationLabel: {
     color: colors.white,
     fontWeight: typography.weights.medium,
   },
   citationLink: {
-    color: colors.teal,
+    color: colors.emerald,
     fontWeight: typography.weights.medium,
   },
   supportingCitation: {
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   refresh: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
   },
