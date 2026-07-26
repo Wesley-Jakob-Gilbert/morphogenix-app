@@ -1,15 +1,29 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ImageBackground,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 
 // Round 3 #11: default Inter face via AppText wrapper (see App.js note).
 import Text from '../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Path } from 'react-native-svg';
+import Svg, {
+  Defs,
+  LinearGradient as SvgLinearGradient,
+  Path,
+  Rect,
+  Stop,
+} from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 import BleConnectCard from '../components/BleConnectCard';
 import BleDebugConsole from '../components/BleDebugConsole';
 import DemoBannerPill from '../components/DemoBannerPill';
+import GlassCard from '../components/GlassCard';
 import LiveControlsFloating from '../components/LiveControlsFloating';
 import MetricTile from '../components/MetricTile';
 import PalateHeroCard from '../components/PalateHeroCard';
@@ -115,90 +129,155 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.teal} />}
-      >
-        <View style={styles.header}>
-          <View style={styles.brandRow}>
-            <MountainLogo />
-            <View style={styles.brandCopy}>
-              <Text style={styles.brand}>MorphoGenix</Text>
-              <Text style={styles.window}>{morphodayWindow}</Text>
+    <ImageBackground
+      source={require('../../assets/backgrounds/mountains.jpg')}
+      style={styles.background}
+      resizeMode="cover"
+    >
+      <BackgroundGradient />
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.emerald}
+            />
+          }
+        >
+          <GlassCard variant="dark" style={styles.header}>
+            <View style={styles.brandRow}>
+              <MountainLogo />
+              <View style={styles.brandCopy}>
+                <Text style={styles.brand}>MorphoGenix</Text>
+                <Text style={styles.window}>{morphodayWindow}</Text>
+              </View>
+            </View>
+            <View style={styles.welcomeBlock}>
+              <View style={styles.welcomeCopy}>
+                <Text style={styles.greeting}>Good morning, Wes</Text>
+                {!videoMode ? <Text style={styles.source}>Source: {source}</Text> : null}
+              </View>
+              <ScoreRing
+                value={metrics.posture}
+                max={100}
+                label="Posture"
+                size={104}
+                strokeWidth={9}
+              />
+            </View>
+          </GlassCard>
+
+          {!videoMode ? <DemoBannerPill /> : null}
+          {!videoMode ? (
+            <GlassCard variant="dark" style={styles.cardGlass} borderRadius={20}>
+              <View style={styles.cardMarginReset}>
+                <BleConnectCard />
+              </View>
+            </GlassCard>
+          ) : null}
+          {!videoMode ? <BleDebugConsole /> : null}
+          <GlassCard variant="dark" style={styles.heroGlass} borderRadius={28}>
+            <View style={styles.cardMarginReset}>
+              <PalateHeroCard packet={packet} isStreaming={isStreaming} />
+            </View>
+          </GlassCard>
+          <WearTimeCaption label={wearTime.label} />
+
+          <GlassCard variant="dark" style={styles.cardGlass} borderRadius={22}>
+            <View style={styles.cardMarginReset}>
+              <TakeawayCard takeaway={demoTakeaway} />
+            </View>
+          </GlassCard>
+
+          {videoMode ? (
+            <GlassCard variant="dark" style={styles.cardGlass} borderRadius={22}>
+              <View style={styles.cardMarginReset}>
+                <PositionLog log={positionLog} currentPosition={currentPosition} />
+              </View>
+            </GlassCard>
+          ) : null}
+
+          <View style={styles.grid}>
+            <View style={styles.gridRow}>
+              <GlassCard variant="dark" style={styles.metricGlass} borderRadius={22}>
+                <MetricTile
+                  title="Posture Score"
+                  value={metrics.posture}
+                  accent={colors.emerald}
+                  onPress={() => openAnalytics('posture')}
+                  /* #5: no real posture time-series in demo mode — omit sparkline */
+                />
+              </GlassCard>
+              <View style={styles.gridGap} />
+              <GlassCard variant="dark" style={styles.metricGlass} borderRadius={22}>
+                <MetricTile
+                  title="Palatal Pressure"
+                  value={metrics.pressure}
+                  unit={videoMode ? '/100' : 'N'}
+                  accent={colors.sky}
+                  onPress={() => openAnalytics('pressure')}
+                  /* #5: real rolling series from the smoothed FSR pressure signal */
+                  sparkline={pressureSeries}
+                />
+              </GlassCard>
+            </View>
+            <View style={styles.gridRow}>
+              <GlassCard variant="dark" style={styles.metricGlass} borderRadius={22}>
+                <MetricTile
+                  title="Clench Events"
+                  value={metrics.clench}
+                  unit={videoMode ? '' : '/hr'}
+                  accent={colors.skyDeep}
+                  onPress={() => openAnalytics('clench')}
+                  /* #5: no real clench time-series in demo mode — omit sparkline */
+                />
+              </GlassCard>
+              <View style={styles.gridGap} />
+              <GlassCard variant="dark" style={styles.metricGlass} borderRadius={22}>
+                <MetricTile
+                  title="Nasal Breathing"
+                  value={metrics.nasal}
+                  unit="%"
+                  accent={colors.emerald}
+                  onPress={() => openAnalytics('nasal')}
+                  /* #5: no real nasal time-series in demo mode — omit sparkline */
+                />
+              </GlassCard>
             </View>
           </View>
-          <View style={styles.welcomeBlock}>
-            <View style={styles.welcomeCopy}>
-              <Text style={styles.greeting}>Good morning, Wes</Text>
-              {!videoMode ? <Text style={styles.source}>Source: {source}</Text> : null}
-            </View>
-            <ScoreRing
-              value={metrics.posture}
-              max={100}
-              label="Posture"
-              size={104}
-              strokeWidth={9}
-            />
-          </View>
-        </View>
+        </ScrollView>
+        {videoMode ? <LiveControlsFloating /> : null}
+      </SafeAreaView>
+    </ImageBackground>
+  );
+}
 
-        {!videoMode ? <DemoBannerPill /> : null}
-        {!videoMode ? <BleConnectCard /> : null}
-        {!videoMode ? <BleDebugConsole /> : null}
-        <PalateHeroCard packet={packet} isStreaming={isStreaming} />
-        <WearTimeCaption label={wearTime.label} />
-
-        <TakeawayCard takeaway={demoTakeaway} />
-
-        {videoMode ? (
-          <PositionLog log={positionLog} currentPosition={currentPosition} />
-        ) : null}
-
-        <View style={styles.grid}>
-          <View style={styles.gridRow}>
-            <MetricTile
-              title="Posture Score"
-              value={metrics.posture}
-              accent={colors.teal}
-              onPress={() => openAnalytics('posture')}
-              /* #5: no real posture time-series in demo mode — omit sparkline */
-            />
-            <View style={styles.gridGap} />
-            <MetricTile
-              title="Palatal Pressure"
-              value={metrics.pressure}
-              unit={videoMode ? '/100' : 'N'}
-              accent={colors.amber}
-              onPress={() => openAnalytics('pressure')}
-              /* #5: real rolling series from the smoothed FSR pressure signal */
-              sparkline={pressureSeries}
-            />
-          </View>
-          <View style={styles.gridRow}>
-            <MetricTile
-              title="Clench Events"
-              value={metrics.clench}
-              unit={videoMode ? '' : '/hr'}
-              accent={colors.violet}
-              onPress={() => openAnalytics('clench')}
-              /* #5: no real clench time-series in demo mode — omit sparkline */
-            />
-            <View style={styles.gridGap} />
-            <MetricTile
-              title="Nasal Breathing"
-              value={metrics.nasal}
-              unit="%"
-              accent={colors.teal}
-              onPress={() => openAnalytics('nasal')}
-              /* #5: no real nasal time-series in demo mode — omit sparkline */
-            />
-          </View>
-        </View>
-      </ScrollView>
-      {videoMode ? <LiveControlsFloating /> : null}
-    </SafeAreaView>
+function BackgroundGradient() {
+  return (
+    <Svg
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      width="100%"
+      height="100%"
+      preserveAspectRatio="none"
+    >
+      <Defs>
+        <SvgLinearGradient
+          id="homeBackgroundShade"
+          x1="0%"
+          y1="0%"
+          x2="0%"
+          y2="100%"
+        >
+          <Stop offset="0" stopColor="#000000" stopOpacity="0" />
+          <Stop offset="1" stopColor="#000000" stopOpacity="0.35" />
+        </SvgLinearGradient>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#homeBackgroundShade)" />
+    </Svg>
   );
 }
 
@@ -206,17 +285,20 @@ function MountainLogo() {
   return (
     <View style={styles.logoWrap}>
       <Svg width="46" height="30" viewBox="0 0 46 30">
-        <Path d="M2 27 L15 10 L22 18 L30 5 L44 27" fill="none" stroke={colors.teal} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M15 10 L19 14 L22 18" fill="none" stroke={colors.white} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
+        <Path d="M2 27 L15 10 L22 18 L30 5 L44 27" fill="none" stroke={colors.emerald} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <Path d="M15 10 L19 14 L22 18" fill="none" stroke={colors.snow} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
       </Svg>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  background: {
+    flex: 1,
+  },
   safeArea: {
     flex: 1,
-    backgroundColor: colors.navy,
+    backgroundColor: 'transparent',
   },
   content: {
     paddingHorizontal: spacing.lg,
@@ -224,7 +306,8 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   header: {
-    paddingTop: spacing.md,
+    marginTop: spacing.md,
+    padding: spacing.lg,
   },
   brandRow: {
     flexDirection: 'row',
@@ -236,20 +319,20 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(11, 18, 32, 0.42)',
     marginRight: spacing.md,
   },
   brandCopy: {
     flex: 1,
   },
   brand: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
     letterSpacing: 0.2,
   },
   window: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.caption,
     marginTop: spacing.xxs,
   },
@@ -264,14 +347,14 @@ const styles = StyleSheet.create({
     paddingRight: spacing.lg,
   },
   greeting: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
     // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
   },
   source: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     marginTop: spacing.xs,
     fontWeight: typography.weights.medium,
@@ -285,5 +368,17 @@ const styles = StyleSheet.create({
   },
   gridGap: {
     width: spacing.md,
+  },
+  cardGlass: {
+    marginTop: spacing.lg,
+  },
+  heroGlass: {
+    marginTop: spacing.lg,
+  },
+  cardMarginReset: {
+    marginTop: -spacing.lg,
+  },
+  metricGlass: {
+    flex: 1,
   },
 });
