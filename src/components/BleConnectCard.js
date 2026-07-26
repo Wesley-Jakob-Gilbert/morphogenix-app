@@ -236,7 +236,7 @@ export default function BleConnectCard() {
         <View style={[styles.dot, { backgroundColor: dotColor }]} />
         <Text style={styles.title}>{title}</Text>
         {showSpinner ? (
-          <ActivityIndicator size="small" color={colors.teal} style={styles.spinner} />
+          <ActivityIndicator size="small" color={colors.emerald} style={styles.spinner} />
         ) : null}
       </View>
       <Text style={styles.body}>{body}</Text>

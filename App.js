@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { NavigationContainer, DefaultTheme } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
@@ -46,10 +46,21 @@ export default function App() {
   });
 
   // Gate the root render until Inter is registered so the first frame is not
-  // a system-font flash that then re-lays-out. This is a minimal placeholder
-  // matching the app floor color — NOT a SplashScreen change (separate concern).
+  // a system-font flash that then re-lays-out. Keep this in-app loading state
+  // aligned with the native splash while the Swiss Alps experience initializes.
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: colors.base }} />;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.navy,
+        }}
+      >
+        <ActivityIndicator color={colors.emerald} />
+      </View>
+    );
   }
 
   return (
