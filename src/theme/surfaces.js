@@ -1,5 +1,9 @@
 import colors from './colors';
 
+export const glassDark = 'rgba(11, 18, 32, 0.55)';
+export const glassLight = 'rgba(255, 255, 255, 0.15)';
+export const glassBorder = 'rgba(255, 255, 255, 0.12)';
+
 /**
  * Shared surface materials (Round 3 #3 — "one material, everywhere").
  *
@@ -25,4 +29,9 @@ export const elevatedCard = {
   elevation: 6,
 };
 
-export default { elevatedCard };
+export default {
+  elevatedCard,
+  glassDark,
+  glassLight,
+  glassBorder,
+};
