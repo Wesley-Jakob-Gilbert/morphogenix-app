@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  ImageBackground,
   Linking,
   Modal,
   Platform,
@@ -10,13 +11,13 @@ import {
 } from 'react-native';
 // Round 3 #11: default Inter face via AppText wrapper (see App.js note).
 import Text from '../components/AppText';
+import GlassCard from '../components/GlassCard';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import useStream from '../hooks/useStream';
 import { calibrateSupine, getCalibratedAt } from '../services/headPosition';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
-import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 import { haptics } from '../utils/haptics';
 
@@ -67,144 +68,150 @@ export default function AccountScreen() {
   const calibratedLabel = formatCalibratedAt(calibratedAt);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.kicker}>ACCOUNT</Text>
-        <Text style={styles.title}>You</Text>
+    <ImageBackground
+      source={require('../../assets/backgrounds/mountains.jpg')}
+      resizeMode="cover"
+      style={styles.background}
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.kicker}>ACCOUNT</Text>
+          <Text style={styles.title}>You</Text>
 
-        {/* Profile */}
-        <Section title="Profile">
-          <View style={styles.profileRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>WG</Text>
+          {/* Profile */}
+          <Section title="Profile">
+            <View style={styles.profileRow}>
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>WG</Text>
+              </View>
+              <View style={styles.profileMeta}>
+                <Text style={styles.name}>Wes Gilbert</Text>
+                <Text style={styles.email}>wes@morphogenix.ai</Text>
+              </View>
             </View>
-            <View style={styles.profileMeta}>
-              <Text style={styles.name}>Wes Gilbert</Text>
-              <Text style={styles.email}>wes@morphogenix.ai</Text>
-            </View>
-          </View>
 
-          <View style={styles.goalRow}>
-            <View>
-              <Text style={styles.goalLabel}>Posture target</Text>
-              <Text style={styles.goalValue}>{postureTarget}/100</Text>
+            <View style={styles.goalRow}>
+              <View>
+                <Text style={styles.goalLabel}>Posture target</Text>
+                <Text style={styles.goalValue}>{postureTarget}/100</Text>
+              </View>
+              <View style={styles.adjuster}>
+                <Pressable
+                  onPress={() => adjustPostureTarget(-5)}
+                  style={styles.adjustBtn}
+                >
+                  <Text style={styles.adjustBtnText}>−</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => adjustPostureTarget(5)}
+                  style={styles.adjustBtn}
+                >
+                  <Text style={styles.adjustBtnText}>+</Text>
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.adjuster}>
+          </Section>
+
+          {/* Device */}
+          <Section title="Device">
+            <Row label="Status" value="Demo mode (no device connected)" valueAccent={colors.sky} />
+            <Row label="Last sync" value="—" />
+            <Row label="Battery" value="—" />
+          </Section>
+
+          {/* Head Position (Phase 3 IMU) */}
+          <Section title="Head Position">
+            <View style={styles.calibrateRow}>
               <Pressable
-                onPress={() => adjustPostureTarget(-5)}
-                style={styles.adjustBtn}
+                onPress={onCalibrateSupine}
+                style={({ pressed }) => [styles.calibrateBtn, pressed && { opacity: 0.8 }]}
+                accessibilityRole="button"
+                accessibilityLabel="Calibrate supine head position"
               >
-                <Text style={styles.adjustBtnText}>−</Text>
+                <Text style={styles.calibrateBtnText}>Calibrate Supine</Text>
               </Pressable>
-              <Pressable
-                onPress={() => adjustPostureTarget(5)}
-                style={styles.adjustBtn}
-              >
-                <Text style={styles.adjustBtnText}>+</Text>
-              </Pressable>
+              <Text style={styles.calibrateMeta}>
+                {calibratedLabel
+                  ? `Last calibrated: ${calibratedLabel}`
+                  : 'Not yet calibrated'}
+              </Text>
+              {calibrateError ? (
+                <Text style={styles.calibrateError}>{calibrateError}</Text>
+              ) : null}
             </View>
-          </View>
-        </Section>
+          </Section>
 
-        {/* Device */}
-        <Section title="Device">
-          <Row label="Status" value="Demo mode (no device connected)" valueAccent={colors.amber} />
-          <Row label="Last sync" value="—" />
-          <Row label="Battery" value="—" />
-        </Section>
+          {/* Preferences */}
+          <Section title="Preferences">
+            <Row label="Morphoday start hour" value="12:00 PM" />
+            <Row label="Color scale" value="0–100 normalized" />
+            <Row label="Demo Mode" value={Platform.OS === 'web' ? 'ON (locked on web)' : 'ON'} valueAccent={colors.emerald} />
+            <Row label="Notifications" value="Off" />
+          </Section>
 
-        {/* Head Position (Phase 3 IMU) */}
-        <Section title="Head Position">
-          <View style={styles.calibrateRow}>
-            <Pressable
-              onPress={onCalibrateSupine}
-              style={({ pressed }) => [styles.calibrateBtn, pressed && { opacity: 0.8 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Calibrate supine head position"
-            >
-              <Text style={styles.calibrateBtnText}>Calibrate Supine</Text>
-            </Pressable>
-            <Text style={styles.calibrateMeta}>
-              {calibratedLabel
-                ? `Last calibrated: ${calibratedLabel}`
-                : 'Not yet calibrated'}
-            </Text>
-            {calibrateError ? (
-              <Text style={styles.calibrateError}>{calibrateError}</Text>
-            ) : null}
-          </View>
-        </Section>
-
-        {/* Preferences */}
-        <Section title="Preferences">
-          <Row label="Morphoday start hour" value="12:00 PM" />
-          <Row label="Color scale" value="0–100 normalized" />
-          <Row label="Demo Mode" value={Platform.OS === 'web' ? 'ON (locked on web)' : 'ON'} valueAccent={colors.teal} />
-          <Row label="Notifications" value="Off" />
-        </Section>
-
-        {/* About Us */}
-        <Section title="About">
-          <PushRow label="About MorphoGenix" onPress={() => setAboutOpen(true)} />
-          <Row label="Version" value="0.1.0 (web demo)" />
-          <PushRow
-            label="morphogenix.ai"
-            onPress={() => Linking.openURL('https://morphogenix.ai')}
-          />
-        </Section>
-
-        {/* Legal */}
-        <Section title="Legal">
-          <PushRow label="Privacy Policy" onPress={() => {}} />
-          <PushRow label="Terms of Service" onPress={() => {}} />
-        </Section>
-
-        <View style={{ height: spacing.xxl }} />
-      </ScrollView>
-
-      <Modal
-        visible={aboutOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setAboutOpen(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalKicker}>ABOUT MORPHOGENIX</Text>
-            <Text style={styles.modalTitle}>Oral biometrics, mainstream.</Text>
-            <Text style={styles.modalBody}>
-              MorphoGenix is building the first wearable that turns the roof of your mouth into a daily
-              health signal. We map palatal pressure, posture, clenching, and nasal breathing — quietly,
-              continuously — so you can see how your body actually feels through the day.
-            </Text>
-            <Text style={styles.modalBody}>
-              Our mission is to make oral biometrics as routine as steps and heart rate, and to put that
-              data in your hands without a clinic visit.
-            </Text>
-
-            <Text style={styles.modalSection}>Team</Text>
-            <Text style={styles.modalLine}>Wes Gilbert · Founder</Text>
-
-            <Text style={styles.modalSection}>Version</Text>
-            <Text style={styles.modalLine}>0.1.0 (web demo)</Text>
-
-            <Pressable
+          {/* About Us */}
+          <Section title="About">
+            <PushRow label="About MorphoGenix" onPress={() => setAboutOpen(true)} />
+            <Row label="Version" value="0.1.0 (web demo)" valueAccent={colors.snow} />
+            <PushRow
+              label="morphogenix.ai"
               onPress={() => Linking.openURL('https://morphogenix.ai')}
-              style={styles.modalLink}
-            >
-              <Text style={styles.modalLinkText}>morphogenix.ai →</Text>
-            </Pressable>
+            />
+          </Section>
 
-            <Pressable onPress={() => setAboutOpen(false)} style={styles.modalClose}>
-              <Text style={styles.modalCloseText}>Close</Text>
-            </Pressable>
+          {/* Legal */}
+          <Section title="Legal">
+            <PushRow label="Privacy Policy" onPress={() => {}} />
+            <PushRow label="Terms of Service" onPress={() => {}} />
+          </Section>
+
+          <View style={{ height: spacing.xxl }} />
+        </ScrollView>
+
+        <Modal
+          visible={aboutOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setAboutOpen(false)}
+        >
+          <View style={styles.modalBackdrop}>
+            <GlassCard variant="dark" style={styles.modalCard} borderRadius={24}>
+              <Text style={styles.modalKicker}>ABOUT MORPHOGENIX</Text>
+              <Text style={styles.modalTitle}>Oral biometrics, mainstream.</Text>
+              <Text style={styles.modalBody}>
+                MorphoGenix is building the first wearable that turns the roof of your mouth into a daily
+                health signal. We map palatal pressure, posture, clenching, and nasal breathing — quietly,
+                continuously — so you can see how your body actually feels through the day.
+              </Text>
+              <Text style={styles.modalBody}>
+                Our mission is to make oral biometrics as routine as steps and heart rate, and to put that
+                data in your hands without a clinic visit.
+              </Text>
+
+              <Text style={styles.modalSection}>Team</Text>
+              <Text style={styles.modalLine}>Wes Gilbert · Founder</Text>
+
+              <Text style={styles.modalSection}>Version</Text>
+              <Text style={styles.modalLine}>0.1.0 (web demo)</Text>
+
+              <Pressable
+                onPress={() => Linking.openURL('https://morphogenix.ai')}
+                style={styles.modalLink}
+              >
+                <Text style={styles.modalLinkText}>morphogenix.ai →</Text>
+              </Pressable>
+
+              <Pressable onPress={() => setAboutOpen(false)} style={styles.modalClose}>
+                <Text style={styles.modalCloseText}>Close</Text>
+              </Pressable>
+            </GlassCard>
           </View>
-        </View>
-      </Modal>
-    </SafeAreaView>
+        </Modal>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -212,7 +219,7 @@ function Section({ title, children }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionHeader}>{title.toUpperCase()}</Text>
-      <View style={styles.sectionBody}>{children}</View>
+      <GlassCard variant="dark" style={styles.sectionBody}>{children}</GlassCard>
     </View>
   );
 }
@@ -242,7 +249,11 @@ function PushRow({ label, onPress }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.navy },
+  background: {
+    flex: 1,
+    backgroundColor: colors.navy,
+  },
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -250,13 +261,13 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   kicker: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
   },
   title: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
     // Named Inter family carries the weight (Round 3 #8).
@@ -267,8 +278,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   sectionHeader: {
-    color: colors.teal,
-    opacity: 0.7,
+    color: colors.stone,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
@@ -276,11 +286,7 @@ const styles = StyleSheet.create({
     marginLeft: spacing.xs,
   },
   sectionBody: {
-    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
-    // elevated card material so Account settings groups match Home.
-    ...elevatedCard,
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 20,
   },
   profileRow: {
     flexDirection: 'row',
@@ -294,7 +300,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.teal,
+    backgroundColor: colors.emerald,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
@@ -307,12 +313,12 @@ const styles = StyleSheet.create({
   },
   profileMeta: { flex: 1 },
   name: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
   },
   email: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     marginTop: spacing.xxs,
   },
@@ -324,11 +330,11 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   goalLabel: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.caption,
   },
   goalValue: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
     marginTop: spacing.xxs,
@@ -340,13 +346,13 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: colors.navy,
+    backgroundColor: 'rgba(11,18,32,0.72)',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
   },
   adjustBtnText: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: 22,
     fontWeight: typography.weights.bold,
     lineHeight: 24,
@@ -365,7 +371,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
   },
   calibrateBtn: {
-    backgroundColor: colors.teal,
+    backgroundColor: colors.emerald,
     borderRadius: 999,
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.lg,
@@ -379,7 +385,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   calibrateMeta: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     marginTop: spacing.sm,
   },
@@ -392,17 +398,17 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   rowLabel: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.medium,
   },
   rowValue: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
   },
   chevron: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: 22,
     fontWeight: typography.weights.medium,
   },
@@ -413,41 +419,36 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   modalCard: {
-    // Round 3 #3: unify the About modal on the elevated card material. Drop the
-    // one-off teal-tinted border in favor of the standard ink hairline so it
-    // reads as the same surface language as every other card.
-    ...elevatedCard,
-    borderRadius: 24,
     padding: spacing.xl,
   },
   modalKicker: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
   },
   modalTitle: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.title,
     lineHeight: typography.lineHeights.title,
     fontWeight: typography.weights.bold,
     marginTop: spacing.xs,
   },
   modalBody: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.body,
     lineHeight: typography.lineHeights.body,
     marginTop: spacing.md,
   },
   modalSection: {
-    color: colors.teal,
+    color: colors.stone,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
     marginTop: spacing.lg,
   },
   modalLine: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.medium,
     marginTop: 4,
@@ -456,7 +457,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.lg,
   },
   modalLinkText: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.body,
     fontWeight: typography.weights.bold,
   },
@@ -469,7 +470,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navy,
   },
   modalCloseText: {
-    color: colors.white,
+    color: colors.snow,
     fontWeight: typography.weights.bold,
     fontSize: typography.sizes.caption,
   },
