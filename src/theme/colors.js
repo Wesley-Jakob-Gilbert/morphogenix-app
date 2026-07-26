@@ -1,11 +1,28 @@
 const colors = {
-  // --- LOCKED PALETTE (DO NOT CHANGE) ---
+  // --- SWISS ALPS PALETTE ---
+  snow: '#FFFFFF',
+  snowSoft: '#F4F6F8',
+  emerald: '#7DD3B8',
+  emeraldDeep: '#4FA88A',
+  sky: '#8FC5E5',
+  skyDeep: '#5A93B8',
+  stone: '#6B7280',
+  stoneDark: '#374151',
+
+  // --- LEGACY PALETTE (kept for compatibility) ---
+  // @deprecated — being phased out in Swiss Alps refresh
   navy: '#0B1220',
+  // @deprecated — being phased out in Swiss Alps refresh
   teal: '#29E0C8',
+  // @deprecated — being phased out in Swiss Alps refresh
   amber: '#F5B343',
+  // @deprecated — being phased out in Swiss Alps refresh
   violet: '#8A6CFF',
+  // @deprecated — being phased out in Swiss Alps refresh
   white: '#FFFFFF',
+  // @deprecated — being phased out in Swiss Alps refresh
   muted: '#8B93A7',
+  // @deprecated — being phased out in Swiss Alps refresh
   surface: '#141B2D',
 
   // --- STATE-ONLY EXTENSION (Round 3, Wes decision #2, July 8) ---
@@ -27,10 +44,15 @@ const colors = {
   // Depth order, darkest -> lightest: base -> navy -> surface -> surfaceElevated.
   // Per NN/g dark-mode guidance, the bottom layer is darkest and elevated
   // surfaces are progressively lighter to read as "closer" to the user.
+  // @deprecated — being phased out in Swiss Alps refresh
   base: '#070C16', // app floor, darker than navy
+  // @deprecated — being phased out in Swiss Alps refresh
   surfaceElevated: '#1A2336', // cards lifted above `surface`
+  // @deprecated — being phased out in Swiss Alps refresh
   ink: 'rgba(255, 255, 255, 0.08)', // hairline inner border on elevated surfaces
+  // @deprecated — being phased out in Swiss Alps refresh
   inkSoft: 'rgba(255, 255, 255, 0.04)', // faint divider / inner sheen
+  // @deprecated — being phased out in Swiss Alps refresh
   shadow: '#000000', // shadow color for soft multi-layer elevation
 };
 
