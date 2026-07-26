@@ -1,11 +1,17 @@
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import {
+  ImageBackground,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 
+import GlassCard from '../components/GlassCard';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
-import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 import { haptics } from '../utils/haptics';
 // Round 3 #11: default Inter face via AppText wrapper (see App.js note).
@@ -134,46 +140,52 @@ function parsePressureN(value) {
 
 export default function HistoryScreen() {
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.kicker}>HISTORY</Text>
-        <Text style={styles.title}>Morphodays</Text>
-        <Text style={styles.subtitle}>Last 14 days · composite wellness</Text>
+    <ImageBackground
+      source={require('../../assets/backgrounds/mountains.jpg')}
+      resizeMode="cover"
+      style={styles.background}
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.kicker}>HISTORY</Text>
+          <Text style={styles.title}>Morphodays</Text>
+          <Text style={styles.subtitle}>Last 14 days · composite wellness</Text>
 
-        <View style={styles.heatmapWrap}>
-          <Heatmap values={HEATMAP} />
-          <View style={styles.heatmapLegend}>
-            <Text style={styles.heatmapLegendText}>14d ago</Text>
-            <Text style={styles.heatmapLegendText}>Today</Text>
-          </View>
+          <GlassCard variant="dark" style={styles.heatmapWrap}>
+            <Heatmap values={HEATMAP} />
+            <View style={styles.heatmapLegend}>
+              <Text style={styles.heatmapLegendText}>14d ago</Text>
+              <Text style={styles.heatmapLegendText}>Today</Text>
+            </View>
 
-          {/* Round 3 #10: a legend so the color/opacity ramp MEANS something.
-              A low->high gradient bar + one sentence. */}
-          <View style={styles.legendBarRow}>
-            <LegendBar />
-          </View>
-          <View style={styles.legendScale}>
-            <Text style={styles.heatmapLegendText}>Lower</Text>
-            <Text style={styles.heatmapLegendText}>Higher</Text>
-          </View>
-          <Text style={styles.legendCaption}>
-            Each square is a day's composite wellness score. Brighter, more
-            teal = a stronger day; dimmer, violet = a day to improve.
-          </Text>
-        </View>
+            {/* Round 3 #10: a legend so the color/opacity ramp MEANS something.
+                A low->high gradient bar + one sentence. */}
+            <View style={styles.legendBarRow}>
+              <LegendBar />
+            </View>
+            <View style={styles.legendScale}>
+              <Text style={styles.heatmapLegendText}>Lower</Text>
+              <Text style={styles.heatmapLegendText}>Higher</Text>
+            </View>
+            <Text style={styles.legendCaption}>
+              Each square is a day's composite wellness score. Brighter, more
+              emerald = a stronger day; dimmer, violet = a day to improve.
+            </Text>
+          </GlassCard>
 
-        <Text style={styles.listHeader}>Recent</Text>
+          <Text style={styles.listHeader}>Recent</Text>
 
-        {MORPHODAYS.map((day) => (
-          <DayRow key={day.id} day={day} />
-        ))}
+          {MORPHODAYS.map((day) => (
+            <DayRow key={day.id} day={day} />
+          ))}
 
-        <View style={{ height: spacing.xxl }} />
-      </ScrollView>
-    </SafeAreaView>
+          <View style={{ height: spacing.xxl }} />
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
@@ -205,7 +217,7 @@ function Heatmap({ values }) {
   );
 }
 
-// A tiny three-stop bar (violet -> amber -> teal) that visually keys the
+// A tiny three-stop bar (violet -> amber -> emerald) that visually keys the
 // heatmap's color meaning for the legend (Round 3 #10).
 function LegendBar() {
   return (
@@ -214,7 +226,7 @@ function LegendBar() {
         <LinearGradient id="historyLegend" x1="0" y1="0" x2="1" y2="0">
           <Stop offset="0" stopColor={colors.violet} />
           <Stop offset="0.5" stopColor={colors.amber} />
-          <Stop offset="1" stopColor={colors.teal} />
+          <Stop offset="1" stopColor={colors.emerald} />
         </LinearGradient>
       </Defs>
       <Rect x="0" y="0" width="100" height="8" rx="4" fill="url(#historyLegend)" />
@@ -225,14 +237,14 @@ function LegendBar() {
 // Round 3 #10 — the composite-score -> color mapping, now documented. The score
 // is a 0..1 daily wellness composite (see dayCompositeFraction). Color is a
 // three-band signal, NOT a decorative ramp:
-//   >= 0.85  teal    — a strong day (in range across metrics)
+//   >= 0.85  emerald — a strong day (in range across metrics)
 //   >= 0.70  amber   — a middling day, worth a look
 //   <  0.70  violet  — a low day to improve
 // (This screen predates the stateRed threshold work in #6 and keeps the
-// teal/amber/violet composite ramp deliberately; stateRed stays reserved for
+// emerald/amber/violet composite ramp deliberately; stateRed stays reserved for
 // the live per-metric "improve" state on Home/tiles.)
 export function compositeColor(v) {
-  if (v >= 0.85) return colors.teal;
+  if (v >= 0.85) return colors.emerald;
   if (v >= 0.7) return colors.amber;
   return colors.violet;
 }
@@ -257,25 +269,33 @@ function DayRow({ day }) {
       accessibilityRole="button"
       accessibilityLabel={`${primaryLabel}, composite score ${score}, worn ${day.wear}`}
       onPressIn={() => haptics.selection()}
-      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+      style={({ pressed }) => [styles.rowPressable, pressed && styles.rowPressed]}
     >
-      <View style={styles.rowHead}>
-        <Text style={styles.dayLabel}>{primaryLabel}</Text>
-        <Text style={styles.wear}>Worn {day.wear}</Text>
-      </View>
+      <GlassCard variant="dark" borderRadius={14} style={styles.row}>
+        <View style={styles.rowHead}>
+          <Text style={styles.dayLabel}>{primaryLabel}</Text>
+          <Text style={styles.wear}>Worn {day.wear}</Text>
+        </View>
 
-      <View style={styles.compositeRow}>
-        <View style={[styles.compositeDot, { backgroundColor: dotColor }]} />
-        <Text style={styles.compositeScore}>{score}</Text>
-        <Text style={styles.compositeUnit}>/ 100</Text>
-        <Text style={styles.compositeLabel}>composite</Text>
-      </View>
+        <View style={styles.compositeRow}>
+          <View style={[styles.compositeDot, { backgroundColor: dotColor }]} />
+          <Text style={styles.compositeScore}>{score}</Text>
+          <Text style={styles.compositeUnit}>/ 100</Text>
+          <Text style={styles.compositeLabel}>composite</Text>
+        </View>
+      </GlassCard>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.navy },
+  background: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -283,13 +303,13 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   kicker: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
   },
   title: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
     // Named Inter family carries the weight (Round 3 #8).
@@ -297,13 +317,11 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   subtitle: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     marginTop: spacing.xs,
   },
   heatmapWrap: {
-    // Round 3 #3: unify the heatmap strip container on the elevated material.
-    ...elevatedCard,
     marginTop: spacing.lg,
     borderRadius: 18,
     padding: spacing.md,
@@ -314,7 +332,7 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   heatmapLegendText: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.tiny,
   },
   // Round 3 #10 heatmap legend.
@@ -327,30 +345,27 @@ const styles = StyleSheet.create({
     marginTop: spacing.xs,
   },
   legendCaption: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.tiny,
     lineHeight: typography.lineHeights.caption,
     marginTop: spacing.sm,
   },
   listHeader: {
-    color: colors.muted,
+    color: colors.snow,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.2,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
   },
-  row: {
-    // Round 3 #3: was flat `colors.surface` + rgba hairline. Unify on the
-    // elevated card material so History rows read like Home cards, not a
-    // to-do list.
-    ...elevatedCard,
-    borderRadius: 18,
-    padding: spacing.md,
+  rowPressable: {
     marginBottom: spacing.sm,
   },
   rowPressed: {
     opacity: 0.78,
+  },
+  row: {
+    padding: spacing.md,
   },
   rowHead: {
     flexDirection: 'row',
@@ -358,12 +373,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   dayLabel: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.callout,
     fontWeight: typography.weights.bold,
   },
   wear: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
   },
@@ -381,19 +396,19 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   compositeScore: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.title,
     fontFamily: typography.familyDisplay,
     letterSpacing: -0.5,
   },
   compositeUnit: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
     marginLeft: spacing.xs,
   },
   compositeLabel: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.tiny,
     letterSpacing: 1,
     textTransform: 'uppercase',

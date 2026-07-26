@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,9 +29,9 @@ import Svg, {
   Stop,
 } from 'react-native-svg';
 
+import GlassCard from '../components/GlassCard';
 import colors from '../theme/colors';
 import spacing from '../theme/spacing';
-import { elevatedCard } from '../theme/surfaces';
 import typography from '../theme/typography';
 import { haptics } from '../utils/haptics';
 
@@ -198,10 +199,10 @@ const SECTION_META = [
   // `target` (in the same 0..100-ish units as `spark`) draws a faint 1px guide
   // line where a meaningful goal exists (Round 3 #7). Posture goal is 80;
   // nasal ~90. Pressure/Clench have no single "target" line so it's omitted.
-  { id: 'posture', title: 'Posture', accent: colors.teal, target: 80 },
-  { id: 'pressure', title: 'Pressure', accent: colors.amber },
-  { id: 'clench', title: 'Clench', accent: colors.violet },
-  { id: 'nasal', title: 'Nasal', accent: colors.teal, target: 90 },
+  { id: 'posture', title: 'Posture', accent: colors.emerald, target: 80 },
+  { id: 'pressure', title: 'Pressure', accent: colors.sky },
+  { id: 'clench', title: 'Clench', accent: colors.snowSoft },
+  { id: 'nasal', title: 'Nasal', accent: colors.emerald, target: 90 },
 ];
 
 // Draw-on timing (Round 3 #7). Restrained per Wes decision #5 — chart draw-on
@@ -239,61 +240,70 @@ export default function AnalyticsScreen({ route }) {
   }, [anchor]);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <ScrollView
-        ref={scrollRef}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.kicker}>ANALYTICS</Text>
-        <Text style={styles.title}>Your trends</Text>
+    <ImageBackground
+      source={require('../../assets/backgrounds/mountains-soft.jpg')}
+      resizeMode="cover"
+      style={styles.background}
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.kicker}>ANALYTICS</Text>
+          <Text style={styles.title}>Your trends</Text>
 
-        <View style={styles.pillRow}>
-          {PERIODS.map((p) => {
-            const active = p.id === period;
-            return (
-              <Pressable
-                key={p.id}
-                onPress={() => onSelectPeriod(p.id)}
-                style={[styles.pill, active && styles.pillActive]}
-              >
-                <Text style={[styles.pillText, active && styles.pillTextActive]}>{p.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {SECTION_META.map((meta) => (
-          <View
-            key={meta.id}
-            onLayout={(e) => {
-              sectionOffsets.current[meta.id] = e.nativeEvent.layout.y;
-            }}
-          >
-            <AnalyticsSection
-              meta={meta}
-              data={data[meta.id]}
-              chartKind={meta.id === 'clench' ? 'bar' : 'line'}
-            />
+          <View style={styles.pillRow}>
+            {PERIODS.map((p) => {
+              const active = p.id === period;
+              return (
+                <Pressable
+                  key={p.id}
+                  onPress={() => onSelectPeriod(p.id)}
+                  style={[styles.pill, active && styles.pillActive]}
+                >
+                  <Text style={[styles.pillText, active && styles.pillTextActive]}>{p.label}</Text>
+                </Pressable>
+              );
+            })}
           </View>
-        ))}
 
-        <View style={{ height: spacing.xxl }} />
-      </ScrollView>
-    </SafeAreaView>
+          {SECTION_META.map((meta) => (
+            <View
+              key={meta.id}
+              onLayout={(e) => {
+                sectionOffsets.current[meta.id] = e.nativeEvent.layout.y;
+              }}
+            >
+              <AnalyticsSection
+                meta={meta}
+                data={data[meta.id]}
+                chartKind={meta.id === 'clench' ? 'bar' : 'line'}
+              />
+            </View>
+          ))}
+
+          <View style={{ height: spacing.xxl }} />
+        </ScrollView>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 function AnalyticsSection({ meta, data, chartKind }) {
   return (
-    <View style={[styles.section, { borderLeftColor: meta.accent }]}> 
+    <GlassCard
+      variant="dark"
+      style={[styles.section, { borderLeftColor: meta.accent }]}
+    >
       <View style={styles.sectionHead}>
         <Text style={[styles.sectionEyebrow, { color: meta.accent }]}>{meta.title.toUpperCase()}</Text>
         <View style={[styles.accentDot, { backgroundColor: meta.accent }]} />
       </View>
 
       <Text style={styles.heroNumber}>{data.hero}</Text>
-      <Text style={[styles.delta, { color: data.deltaPositive ? colors.teal : colors.amber }]}>
+      <Text style={[styles.delta, { color: data.deltaPositive ? colors.emerald : colors.sky }]}>
         {data.delta}
       </Text>
 
@@ -320,7 +330,7 @@ function AnalyticsSection({ meta, data, chartKind }) {
       </View>
 
       <Text style={styles.meaning}>{data.meaning}</Text>
-    </View>
+    </GlassCard>
   );
 }
 
@@ -448,7 +458,7 @@ function LineChart({ values, color, slug = 'line', target }) {
         y1={baseY}
         x2={CHART_W - CHART_PAD_X}
         y2={baseY}
-        stroke={colors.white}
+        stroke={colors.snow}
         strokeWidth="1"
         opacity="0.08"
       />
@@ -460,7 +470,7 @@ function LineChart({ values, color, slug = 'line', target }) {
           y1={tY}
           x2={CHART_W - CHART_PAD_X}
           y2={tY}
-          stroke={colors.white}
+          stroke={colors.snow}
           strokeWidth="1"
           strokeDasharray="3 4"
           opacity="0.22"
@@ -528,7 +538,7 @@ function BarChart({ values, color, slug = 'bar' }) {
         y1={baseY}
         x2={CHART_W - CHART_PAD_X}
         y2={baseY}
-        stroke={colors.white}
+        stroke={colors.snow}
         strokeWidth="1"
         opacity="0.08"
       />
@@ -570,7 +580,13 @@ function AnimatedBar({ x, baseY, width, fullHeight, fill, progress }) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: colors.navy },
+  background: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
+    backgroundColor: 'transparent',
+  },
   content: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
@@ -578,13 +594,13 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   kicker: {
-    color: colors.teal,
+    color: colors.emerald,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
   },
   title: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.hero,
     lineHeight: typography.lineHeights.hero,
     // Named Inter family carries the weight (Round 3 #8 — dropped no-op
@@ -594,7 +610,9 @@ const styles = StyleSheet.create({
   },
   pillRow: {
     flexDirection: 'row',
-    backgroundColor: colors.surface,
+    backgroundColor: 'rgba(11, 18, 32, 0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
     borderRadius: 999,
     padding: 4,
     marginTop: spacing.lg,
@@ -606,22 +624,17 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   pillActive: {
-    backgroundColor: colors.navy,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   pillText: {
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.bold,
   },
   pillTextActive: {
-    color: colors.teal,
+    color: colors.emerald,
   },
   section: {
-    // Round 3 #3: was flat `colors.surface` (the "before" material). Unify on
-    // the elevated card so it matches Home. KEEP the 3px accent left border
-    // (it's the section's identity) — elevatedCard sets a full 1px ink border,
-    // then we override the left edge to the accent color + width below.
-    ...elevatedCard,
     borderRadius: 22,
     padding: spacing.lg,
     marginTop: spacing.lg,
@@ -643,7 +656,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   heroNumber: {
-    color: colors.white,
+    color: colors.snow,
     // Round 3 #2: the biggest number on this screen was falling back to Inter
     // Regular at a bold weight (no `fontFamily`) instead of the Inter Black
     // display cut used by the ScoreRing / MetricTile heroes. Route it through
@@ -674,12 +687,12 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.06)',
   },
   statLabel: {
-    color: colors.muted,
+    color: colors.stone,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.medium,
   },
   statValue: {
-    color: colors.white,
+    color: colors.snow,
     fontSize: typography.sizes.caption,
     fontWeight: typography.weights.bold,
   },
@@ -687,7 +700,7 @@ const styles = StyleSheet.create({
     // Round 3 #8: dropped `fontStyle: 'italic'` (the bundled Inter face has no
     // italic cut, so it rendered as a faux/again-regular slant). Read as calm
     // muted body copy with a touch more line-height instead.
-    color: colors.muted,
+    color: colors.snowSoft,
     fontSize: typography.sizes.caption,
     lineHeight: typography.lineHeights.body,
     marginTop: spacing.md,

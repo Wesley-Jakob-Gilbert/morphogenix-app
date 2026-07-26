@@ -45,9 +45,9 @@ describe('dayCompositeScore', () => {
 });
 
 describe('compositeColor (documented 3-band signal)', () => {
-  it('teal for a strong composite (>= 0.85)', () => {
-    expect(compositeColor(0.9)).toBe(colors.teal);
-    expect(compositeColor(0.85)).toBe(colors.teal);
+  it('emerald for a strong composite (>= 0.85)', () => {
+    expect(compositeColor(0.9)).toBe(colors.emerald);
+    expect(compositeColor(0.85)).toBe(colors.emerald);
   });
   it('amber for a middling composite (0.70..0.85)', () => {
     expect(compositeColor(0.75)).toBe(colors.amber);
