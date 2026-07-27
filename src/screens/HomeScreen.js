@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Image,
   ImageBackground,
   Platform,
   RefreshControl,
@@ -149,12 +150,14 @@ export default function HomeScreen({ navigation }) {
         >
           <GlassCard variant="dark" style={styles.header}>
             <View style={styles.brandRow}>
-              <MountainLogo />
-              <View style={styles.brandCopy}>
-                <Text style={styles.brand}>MorphoGenix</Text>
-                <Text style={styles.window}>{morphodayWindow}</Text>
-              </View>
+              <Image
+                source={require('../../assets/brand/wordmark-light.png')}
+                style={styles.wordmark}
+                resizeMode="contain"
+                accessibilityLabel="Morphogenix"
+              />
             </View>
+            <Text style={styles.window}>{morphodayWindow}</Text>
             <View style={styles.welcomeBlock}>
               <View style={styles.welcomeCopy}>
                 <Text style={styles.greeting}>Good morning, Wes</Text>
@@ -281,16 +284,7 @@ function BackgroundGradient() {
   );
 }
 
-function MountainLogo() {
-  return (
-    <View style={styles.logoWrap}>
-      <Svg width="46" height="30" viewBox="0 0 46 30">
-        <Path d="M2 27 L15 10 L22 18 L30 5 L44 27" fill="none" stroke={colors.emerald} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <Path d="M15 10 L19 14 L22 18" fill="none" stroke={colors.snow} strokeOpacity="0.75" strokeWidth="2" strokeLinecap="round" />
-      </Svg>
-    </View>
-  );
-}
+
 
 const styles = StyleSheet.create({
   background: {
@@ -313,28 +307,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  logoWrap: {
-    width: 56,
-    height: 44,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(11, 18, 32, 0.42)',
-    marginRight: spacing.md,
-  },
-  brandCopy: {
-    flex: 1,
-  },
-  brand: {
-    color: colors.snow,
-    fontSize: typography.sizes.callout,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 0.2,
+  wordmark: {
+    width: 180,
+    height: 40,
   },
   window: {
     color: colors.stone,
     fontSize: typography.sizes.caption,
-    marginTop: spacing.xxs,
+    marginTop: spacing.sm,
   },
   welcomeBlock: {
     marginTop: spacing.xl,
