@@ -176,7 +176,7 @@ export default function HistoryScreen() {
             </Text>
           </GlassCard>
 
-          <Text style={styles.listHeader}>Recent</Text>
+          <Text style={styles.listHeader}>RECENT</Text>
 
           {MORPHODAYS.map((day) => (
             <DayRow key={day.id} day={day} />
@@ -355,12 +355,16 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   listHeader: {
+    // Matched to AccountScreen sectionHeader spec for cross-screen consistency.
     color: colors.snow,
     fontSize: typography.sizes.caption,
-    fontWeight: typography.weights.bold,
-    letterSpacing: 1.2,
+    fontFamily: typography.familyDisplay,
+    letterSpacing: 1.6,
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
+    textShadowColor: 'rgba(11, 18, 32, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   rowPressable: {
     marginBottom: spacing.sm,
