@@ -594,26 +594,23 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   kicker: {
-    color: colors.emerald,
+    color: colors.emeraldDeep,
     fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.family.bold,
     letterSpacing: 1.4,
-    textShadowColor: 'rgba(11, 18, 32, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   title: {
-    color: colors.snow,
-    fontSize: typography.sizes.hero,
-    lineHeight: typography.lineHeights.hero,
-    // Named Inter family carries the weight (Round 3 #8 — dropped no-op
-    // numeric fontWeight).
-    fontFamily: typography.family.bold,
+    // Deep navy title with a soft white glow reads clearly against the
+    // light mountain photography — Oura / Whoop / Apple Fitness pattern.
+    color: colors.stoneDark,
+    fontSize: typography.sizes.display,
+    lineHeight: typography.lineHeights.display,
+    fontFamily: typography.familyDisplay,
+    letterSpacing: -0.5,
     marginTop: spacing.xs,
-    // Text shadow gives contrast against the light mountain photography.
-    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowColor: 'rgba(255, 255, 255, 0.65)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
   pillRow: {
     flexDirection: 'row',

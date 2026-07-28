@@ -69,7 +69,7 @@ export default function AccountScreen() {
 
   return (
     <ImageBackground
-      source={require('../../assets/backgrounds/mountains.jpg')}
+      source={require('../../assets/backgrounds/mountains-soft.jpg')}
       resizeMode="cover"
       style={styles.background}
     >
@@ -261,42 +261,33 @@ const styles = StyleSheet.create({
     paddingBottom: 90,
   },
   kicker: {
-    color: colors.emerald,
+    color: colors.emeraldDeep,
     fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.family.bold,
     letterSpacing: 1.4,
-    textShadowColor: 'rgba(11, 18, 32, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   title: {
-    color: colors.snow,
-    fontSize: typography.sizes.hero,
-    lineHeight: typography.lineHeights.hero,
-    // Named Inter family carries the weight (Round 3 #8).
-    fontFamily: typography.family.bold,
+    color: colors.stoneDark,
+    fontSize: typography.sizes.display,
+    lineHeight: typography.lineHeights.display,
+    fontFamily: typography.familyDisplay,
+    letterSpacing: -0.5,
     marginTop: spacing.xs,
-    // Text shadow gives contrast against the light mountain photography.
-    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowColor: 'rgba(255, 255, 255, 0.65)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
   section: {
     marginTop: spacing.xl,
   },
   sectionHeader: {
-    // Was colors.stone (gray) — unreadable against light mountain photo.
-    // Switched to snow (white) + text shadow for contrast against the
-    // background image, matching the treatment on page titles.
-    color: colors.snow,
+    // Dark navy on the light blurred mountain — matches title treatment.
+    color: colors.stoneDark,
     fontSize: typography.sizes.tiny,
-    fontWeight: typography.weights.bold,
+    fontFamily: typography.family.bold,
     letterSpacing: 1.4,
     marginBottom: spacing.sm,
     marginLeft: spacing.xs,
-    textShadowColor: 'rgba(11, 18, 32, 0.55)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 3,
   },
   sectionBody: {
     borderRadius: 20,
