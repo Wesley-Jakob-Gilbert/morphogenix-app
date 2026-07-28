@@ -12,10 +12,11 @@
       }
     },
     "preview": {
-      "distribution": "internal",
+      "distribution": "store",
       "ios": {
         "simulator": false
-      }
+      },
+      "autoIncrement": true
     },
     "production": {
       "autoIncrement": true
