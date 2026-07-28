@@ -265,6 +265,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
+    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   title: {
     color: colors.snow,
@@ -273,17 +276,27 @@ const styles = StyleSheet.create({
     // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
     marginTop: spacing.xs,
+    // Text shadow gives contrast against the light mountain photography.
+    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   section: {
     marginTop: spacing.xl,
   },
   sectionHeader: {
-    color: colors.stone,
+    // Was colors.stone (gray) — unreadable against light mountain photo.
+    // Switched to snow (white) + text shadow for contrast against the
+    // background image, matching the treatment on page titles.
+    color: colors.snow,
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
     marginBottom: spacing.sm,
     marginLeft: spacing.xs,
+    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   sectionBody: {
     borderRadius: 20,

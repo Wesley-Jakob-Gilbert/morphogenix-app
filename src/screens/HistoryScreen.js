@@ -307,6 +307,9 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.tiny,
     fontWeight: typography.weights.bold,
     letterSpacing: 1.4,
+    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   title: {
     color: colors.snow,
@@ -315,11 +318,19 @@ const styles = StyleSheet.create({
     // Named Inter family carries the weight (Round 3 #8).
     fontFamily: typography.family.bold,
     marginTop: spacing.xs,
+    // Text shadow gives contrast against the light mountain photography.
+    textShadowColor: 'rgba(11, 18, 32, 0.55)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    color: colors.snowSoft,
+    color: colors.snow,
     fontSize: typography.sizes.caption,
+    fontWeight: typography.weights.semibold,
     marginTop: spacing.xs,
+    textShadowColor: 'rgba(11, 18, 32, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   heatmapWrap: {
     marginTop: spacing.lg,
