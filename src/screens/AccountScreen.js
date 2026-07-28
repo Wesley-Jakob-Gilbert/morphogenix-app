@@ -281,13 +281,18 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   sectionHeader: {
-    // Dark navy on the light blurred mountain — matches title treatment.
-    color: colors.stoneDark,
-    fontSize: typography.sizes.tiny,
-    fontFamily: typography.family.bold,
-    letterSpacing: 1.4,
+    // Section labels are all-caps micro text on a light blurred mountain.
+    // Small dark text turned muddy; white + stronger navy shadow reads cleaner.
+    // Bumped from tiny (11) to caption (12) + Inter Black for extra weight.
+    color: colors.snow,
+    fontSize: typography.sizes.caption,
+    fontFamily: typography.familyDisplay,
+    letterSpacing: 1.6,
     marginBottom: spacing.sm,
     marginLeft: spacing.xs,
+    textShadowColor: 'rgba(11, 18, 32, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
   },
   sectionBody: {
     borderRadius: 20,
