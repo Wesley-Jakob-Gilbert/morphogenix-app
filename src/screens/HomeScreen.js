@@ -297,7 +297,9 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.lg,
     // Clear the floating frosted tab bar (#3): content scrolls UNDER it.
-    paddingBottom: 90,
+    // 120 leaves ~28px cushion above the ~92px bar on web (no safe-area
+    // inset there); on native the extra room sits above the home indicator.
+    paddingBottom: 120,
   },
   header: {
     marginTop: spacing.md,

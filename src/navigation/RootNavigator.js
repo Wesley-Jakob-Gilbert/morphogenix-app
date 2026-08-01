@@ -35,16 +35,24 @@ function FrostedTabBarBackground() {
 
 const tabBarStyle = Platform.select({
   web: {
+    // Web keeps the bar floating like native (position: absolute), but the
+    // background is fully OPAQUE instead of translucent — there is no safe
+    // area inset on web and the /demo mockup is short enough that the last
+    // card would otherwise appear "chopped" by a see-through bar. An opaque
+    // bar cleanly caps the scroll region; screens pad their content 120px
+    // (see each screen's `paddingBottom`) so nothing sits behind it at the
+    // end of scroll.
     position: 'absolute',
-    // Web fallback: semi-opaque surface in place of the native blur material.
-    backgroundColor: 'rgba(20, 27, 45, 0.85)',
-    borderTopColor: colors.ink,
+    backgroundColor: colors.navy,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
     borderTopWidth: StyleSheet.hairlineWidth,
     minHeight: 72,
     paddingTop: 8,
     paddingBottom: 12,
   },
   default: {
+    // Native keeps the frosted floating tab bar (Apple TabView language);
+    // screens reserve bottom padding so content scrolls UNDER the material.
     position: 'absolute',
     backgroundColor: 'transparent',
     borderTopColor: colors.ink,
