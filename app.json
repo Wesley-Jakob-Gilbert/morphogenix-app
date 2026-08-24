@@ -13,13 +13,15 @@
     },
     "ios": {
       "bundleIdentifier": "ai.morphogenix.app",
-      "buildNumber": "4",
+      "buildNumber": "5",
       "supportsTablet": false,
       "requireFullScreen": false,
       "infoPlist": {
         "NSBluetoothAlwaysUsageDescription": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data.",
         "NSBluetoothPeripheralUsageDescription": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data.",
-        "UIBackgroundModes": ["bluetooth-central"],
+        "UIBackgroundModes": [
+          "bluetooth-central"
+        ],
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -28,12 +30,14 @@
       "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FFFFFF"
+        "backgroundColor": "#24313A"
       },
       "permissions": [
         "android.permission.BLUETOOTH_CONNECT",
         "android.permission.BLUETOOTH_SCAN",
-        "android.permission.ACCESS_FINE_LOCATION"
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN"
       ]
     },
     "web": {
@@ -49,7 +53,9 @@
         "react-native-ble-plx",
         {
           "isBackgroundEnabled": true,
-          "modes": ["central"],
+          "modes": [
+            "central"
+          ],
           "bluetoothAlwaysPermission": "MorphoGenix connects to your intraoral device via Bluetooth to stream palatal-pressure and head-position data."
         }
       ],
@@ -64,6 +70,12 @@
     ],
     "experiments": {
       "baseUrl": "/demo"
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ee5d7550-77af-454a-9a82-43b6a98c11e0"
+      }
     }
   }
 }
